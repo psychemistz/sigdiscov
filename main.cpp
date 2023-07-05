@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
 
 			cout << "\t-r\t\tMaximum grid radius for computing distances. Default: "<< max_radius << endl;
 			cout << "\t-p\t\t10x platform (" << VISIUM << ": VISIUM, " << OLD << ": OLD ST). Default: " << platform <<endl;
-			cout << "\t-g\t\tWhether calculate all genes or only 1st gene. Default: " << allGenes_1stGene << endl;
+			cout << "\t-g\t\tWhether calculate all genes (1) or only 1st gene (0). Default: " << allGenes_1stGene << endl;
 			cout << "\t-s\t\tWhether consider the same spot. Default: " << flag_samespot << endl;
 
 			cout << "\nReport bugs to pengj@alumni.princeton.edu\n" <<endl;
