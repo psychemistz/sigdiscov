@@ -124,8 +124,8 @@ double moran_I(
 					col_offset = abs_offset(spot_col[i], inx_col);
 					w = distance[distance_index(row_offset, col_offset, max_shift)];
 
-					total_sum += w * x[i] * y[j];
-					weight_sum += w;
+					total_sum += w * x[i] * y[j] + w * x[j] * y[i];
+					weight_sum += w * 2;
 				}
 			}
 		}
