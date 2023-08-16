@@ -31,7 +31,7 @@ typedef unsigned int uint;
 
 
 // distance decay funtion
-double decay(const double d, const uint mode);
+double decay(const double d);
 
 // compute distance function of ST grid
 void create_distance(double distance[], const uint max_shift, const uint mode);

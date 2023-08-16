@@ -15,13 +15,9 @@
 #define OLD_DISTANCE 200
 #define SQR(x) ((x) * (x))
 
-double decay(const double d, const uint mode)
+double decay(const double d)
 {
-	if(mode == VISIUM){
-		return exp(-SQR(d)/(2*SQR(75)));
-	}else{
-		return exp(-SQR(d)/(2*SQR(1.2)));
-	}
+	return 1/(1+d/100);
 }
 
 void create_distance(double distance[], const uint max_shift, const uint mode)
@@ -51,7 +47,7 @@ void create_distance(double distance[], const uint max_shift, const uint mode)
 
 			d = sqrt(x*x + y*y);
 
-			distance[distance_index(i, j, max_shift)] = decay(d,mode);
+			distance[distance_index(i, j, max_shift)] = decay(d);
 		}
 	}
 }
