@@ -312,7 +312,7 @@ int main(int argc, char *argv[])
 	n = gene_names.size();
 	ncol = spots.size();
 
-	ofstream fout(output.c_str());
+	ofstream fout(output.c_str(), std::ios::app);
 
 	total = n * (n+1) / 2;
 	step = 100000;
