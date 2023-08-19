@@ -160,7 +160,10 @@ int main(int argc, char *argv[])
 	// for progress bar
 	uint step, total, counter, nstep;
 	
-	// Whether calculate the 1st gene only
+	// Whether calculate paired genes or single gene
+	bool pariedGenes_singleGene = true;
+	
+	// Whether calculate all genes or only 1st gene
 	bool allGenes_1stGene = true;
 
 	// whether consider the same spot for computation
@@ -179,6 +182,7 @@ int main(int argc, char *argv[])
 
 			cout << "\t-r\t\tMaximum grid radius for computing distances. Default: "<< max_radius << endl;
 			cout << "\t-p\t\t10x platform (" << VISIUM << ": VISIUM, " << OLD << ": OLD ST). Default: " << platform <<endl;
+			cout << "\t-b\t\tWhether calculate paired genes (1) or single gene (0). Default: " << pariedGenes_singleGene << endl;
 			cout << "\t-g\t\tWhether calculate all genes (1) or only 1st gene (0). Default: " << allGenes_1stGene << endl;
 			cout << "\t-s\t\tWhether consider the same spot. Default: " << flag_samespot << endl;
 
@@ -207,6 +211,9 @@ int main(int argc, char *argv[])
 
 		}else if (type == "-r"){
 			max_radius = load_positive_value(value, type, (uint)0, (uint)100);
+		
+		}else if (type == "-b"){
+			pariedGenes_singleGene = (value[0]!='0');
 		
 		}else if (type == "-g"){
 			allGenes_1stGene = (value[0]!='0');
@@ -318,69 +325,99 @@ int main(int argc, char *argv[])
 
 	clock_t start_time = clock();
 	
-	if(allGenes_1stGene)
+	if(pariedGenes_singleGene)
 	{
-		for(counter=i=0;i<n;i++)
+		if(allGenes_1stGene)
 		{
-			for(j=0;j<=i;j++, counter++)
+			for(counter=i=0;i<n;i++)
 			{
-				if(counter % step == 0)
+				for(j=0;j<=i;j++, counter++)
 				{
-					cout << "Progress: " << 100.0 * counter / total << "%";
-	
-					if(counter > 0){
-						// time elapsed until now
-						val = (clock() - start_time) / (double)CLOCKS_PER_SEC;
-	
-						// time left from now
-						val = val * (total - counter)/counter;
-						cout << "\tEstimated time left: " << val/3600 << " hours";
-					}
-	
-					cout << endl;
-				};
-	
-				fout << moran_I(
-					data + i*ncol, data + j*ncol, ncol,
-					distance, max_radius,
-					spot_x, spot_y, max_spot_x, max_spot_y,
-					spot_index_map
-					) << (j==i? '\n': '\t');
-			}
-		}
+					if(counter % step == 0)
+					{
+						cout << "Progress: " << 100.0 * counter / total << "%";
 		
+						if(counter > 0){
+							// time elapsed until now
+							val = (clock() - start_time) / (double)CLOCKS_PER_SEC;
+		
+							// time left from now
+							val = val * (total - counter)/counter;
+							cout << "\tEstimated time left: " << val/3600 << " hours";
+						}
+		
+						cout << endl;
+					};
+		
+					fout << moran_I(
+						data + i*ncol, data + j*ncol, ncol,
+						distance, max_radius,
+						spot_x, spot_y, max_spot_x, max_spot_y,
+						spot_index_map
+						) << (j==i? '\n': '\t');
+				}
+			}
+		
+		}else{
+			for(counter=i=0;i<n;i++)
+			{
+				for(j=0;j<=0;j++, counter++)
+				{
+					if(counter % step == 0)
+					{
+						cout << "Progress: " << 100.0 * counter / total << "%";
+		
+						if(counter > 0){
+							// time elapsed until now
+							val = (clock() - start_time) / (double)CLOCKS_PER_SEC;
+		
+							// time left from now
+							val = val * (total - counter)/counter;
+							cout << "\tEstimated time left: " << val/3600 << " hours";
+						}
+		
+						cout << endl;
+					};
+		
+					fout << moran_I(
+						data + i*ncol, data + j*ncol, ncol,
+						distance, max_radius,
+						spot_x, spot_y, max_spot_x, max_spot_y,
+						spot_index_map
+						) << (j==0? '\n': '\t');
+				}
+			}
+		
+		}
 	}else{
 		for(counter=i=0;i<n;i++)
 		{
-			for(j=0;j<=0;j++, counter++)
+			if(counter % step == 0)
 			{
-				if(counter % step == 0)
-				{
-					cout << "Progress: " << 100.0 * counter / total << "%";
-	
-					if(counter > 0){
-						// time elapsed until now
-						val = (clock() - start_time) / (double)CLOCKS_PER_SEC;
-	
-						// time left from now
-						val = val * (total - counter)/counter;
-						cout << "\tEstimated time left: " << val/3600 << " hours";
-					}
-	
-					cout << endl;
-				};
-	
-				fout << moran_I(
-					data + i*ncol, data + j*ncol, ncol,
-					distance, max_radius,
-					spot_x, spot_y, max_spot_x, max_spot_y,
-					spot_index_map
-					) << (j==0? '\n': '\t');
-			}
+				cout << "Progress: " << 100.0 * counter / total << "%";
+		
+				if(counter > 0){
+					// time elapsed until now
+					val = (clock() - start_time) / (double)CLOCKS_PER_SEC;
+		
+					// time left from now
+					val = val * (total - counter)/counter;
+					cout << "\tEstimated time left: " << val/3600 << " hours";
+				}
+		
+				cout << endl;
+			};
+		
+			fout << moran_I(
+				data + i*ncol, data + i*ncol, ncol,
+				distance, max_radius,
+				spot_x, spot_y, max_spot_x, max_spot_y,
+				spot_index_map
+				) << (i==(n-1))? '\n': '\t');
 		}
 		
 	}
-
+	
 	fout.close();
 
 	delete [] data;
