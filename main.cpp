@@ -413,7 +413,7 @@ int main(int argc, char *argv[])
 				distance, max_radius,
 				spot_x, spot_y, max_spot_x, max_spot_y,
 				spot_index_map
-				) << (i==(n-1))? '\n': '\t');
+				) << ((i==(n-1))? '\n': '\t');
 		}
 		
 	}
