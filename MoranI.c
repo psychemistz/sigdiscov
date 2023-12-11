@@ -17,7 +17,7 @@
 
 double decay(const double d)
 {
-	return 1/(1+d/100);
+	return exp(-SQR(d/100)/2);
 }
 
 void create_distance(double distance[], const uint max_shift, const uint mode)
