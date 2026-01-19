@@ -72,6 +72,11 @@ vst_transform <- function(counts, min_cells = 5, n_genes = 2000, verbose = TRUE,
 
   counts_filtered <- counts_mat[keep_genes, , drop = FALSE]
 
+  # Increase future.globals.maxSize for large datasets
+  old_option <- getOption("future.globals.maxSize")
+  options(future.globals.maxSize = 2 * 1024^3)  # 2 GB
+  on.exit(options(future.globals.maxSize = old_option), add = TRUE)
+
   # Apply VST with error handling
   tryCatch({
     vst_result <- sctransform::vst(
