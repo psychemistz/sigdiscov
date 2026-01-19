@@ -204,11 +204,6 @@ If you use this package, please cite:
 Beibei Ru, Lanqi Gong, Emily Yang, Seongyong Park, George Zaki, Kenneth Aldape, Lalage Wakefield, Peng Jiang. Inference of secreted protein activities in intercellular communication. [Link](https://github.com/data2intelligence/SecAct)
 ```
 
-## Authors
-
-- Peng Jiang (peng.jiang@nih.gov)
-- Seongyong Park (seongyong.park@nih.gov)
-
 ## License
 
 MIT License
