@@ -20,8 +20,8 @@ An R package for computing pairwise Moran's I statistics between genes in spatia
 # Install devtools if not already installed
 install.packages("devtools")
 
-# Install sigdiscov
-devtools::install_github("psychemistz/sigdiscov")
+# Install sigdiscov from the sigdiscov subdirectory
+devtools::install_github("psychemistz/sigdiscov", subdir = "sigdiscov")
 ```
 
 ### Dependencies
@@ -161,13 +161,13 @@ The package uses BLAS matrix operations to compute pairwise Moran's I efficientl
 If you use this package, please cite:
 
 ```
-Jiang P, Park S. sigdiscov: Pairwise Moran's I for Spatial Transcriptomics.
+Park S, Jiang P. sigdiscov: Pairwise Moran's I for Spatial Transcriptomics.
 ```
 
 ## Authors
 
-- Peng Jiang (pengj@alumni.princeton.edu)
-- Seongyong Park
+- Peng Jiang (peng.jiang@nih.gov)
+- Seongyong Park (seongyong.park@nih.gov)
 
 ## License
 
