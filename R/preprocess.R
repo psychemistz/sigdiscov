@@ -6,6 +6,7 @@
 #' @param counts A matrix or sparse matrix of raw counts. Rows are genes, columns are spots.
 #' @param min_cells Minimum number of cells expressing a gene for it to be included.
 #'   Default: 5.
+#' @param n_genes Number of genes to use for fitting the model. Default: 2000.
 #' @param verbose Print progress messages. Default: TRUE.
 #' @param ... Additional arguments passed to \code{sctransform::vst}.
 #'
@@ -38,10 +39,10 @@
 #' }
 #'
 #' @export
-vst_transform <- function(counts, min_cells = 5, verbose = TRUE, ...) {
+vst_transform <- function(counts, min_cells = 5, n_genes = 2000, verbose = TRUE, ...) {
 
   # Check if sctransform is available
-if (!requireNamespace("sctransform", quietly = TRUE)) {
+  if (!requireNamespace("sctransform", quietly = TRUE)) {
     stop("Package 'sctransform' is required for VST normalization.\n",
          "Install it with: install.packages('sctransform')")
   }
@@ -58,18 +59,43 @@ if (!requireNamespace("sctransform", quietly = TRUE)) {
     counts_mat <- as.matrix(counts)
   }
 
-  # Apply VST
-  vst_result <- sctransform::vst(counts_mat, min_cells = min_cells, verbosity = if(verbose) 1 else 0, ...)
+  # Pre-filter genes: remove genes with zero variance or all zeros
+  gene_sums <- rowSums(counts_mat)
+  gene_nonzero <- rowSums(counts_mat > 0)
 
-  # Extract normalized values (Pearson residuals)
-  data_vst <- vst_result$y
+  # Keep genes that have at least min_cells non-zero values and non-zero total
+  keep_genes <- (gene_nonzero >= min_cells) & (gene_sums > 0)
 
   if (verbose) {
-    cat("Output:", nrow(data_vst), "genes x", ncol(data_vst), "spots\n")
-    cat("VST normalization complete.\n")
+    cat("Filtering genes: keeping", sum(keep_genes), "of", length(keep_genes), "genes\n")
   }
 
-  return(data_vst)
+  counts_filtered <- counts_mat[keep_genes, , drop = FALSE]
+
+  # Apply VST with error handling
+  tryCatch({
+    vst_result <- sctransform::vst(
+      counts_filtered,
+      min_cells = min_cells,
+      n_genes = min(n_genes, nrow(counts_filtered)),
+      verbosity = if(verbose) 1 else 0,
+      ...
+    )
+
+    # Extract normalized values (Pearson residuals)
+    data_vst <- vst_result$y
+
+    if (verbose) {
+      cat("Output:", nrow(data_vst), "genes x", ncol(data_vst), "spots\n")
+      cat("VST normalization complete.\n")
+    }
+
+    return(data_vst)
+
+  }, error = function(e) {
+    stop("VST transformation failed: ", e$message, "\n",
+         "Try adjusting min_cells or n_genes parameters.")
+  })
 }
 
 
@@ -80,6 +106,7 @@ if (!requireNamespace("sctransform", quietly = TRUE)) {
 #'
 #' @param spaceranger_dir Path to the Space Ranger output directory.
 #' @param min_cells Minimum number of cells for VST. Default: 5.
+#' @param n_genes Number of genes to use for VST model fitting. Default: 2000.
 #' @param max_radius Maximum grid radius for Moran's I computation. Default: 5.
 #' @param platform Platform type: "visium" (default) or "old".
 #' @param same_spot Whether to consider the same spot in computation. Default: TRUE.
@@ -108,6 +135,7 @@ if (!requireNamespace("sctransform", quietly = TRUE)) {
 #' @export
 run_pipeline <- function(spaceranger_dir,
                          min_cells = 5,
+                         n_genes = 2000,
                          max_radius = 5,
                          platform = c("visium", "old"),
                          same_spot = TRUE,
@@ -128,7 +156,7 @@ run_pipeline <- function(spaceranger_dir,
 
   # Step 2: VST normalization
   if (verbose) cat("=== Step 2: VST normalization ===\n")
-  data_vst <- vst_transform(visium$counts, min_cells = min_cells, verbose = verbose)
+  data_vst <- vst_transform(visium$counts, min_cells = min_cells, n_genes = n_genes, verbose = verbose)
 
   if (verbose) cat("\n")
 
