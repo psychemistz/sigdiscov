@@ -1,0 +1,25 @@
+Package: sigdiscov
+Type: Package
+Title: Pairwise Moran's I for Spatial Transcriptomics
+Version: 1.0.0
+Date: 2024-01-18
+Authors@R: c(
+    person("Peng", "Jiang", email = "pengj@alumni.princeton.edu", role = c("aut", "cre")),
+    person("Seongyong", "Park", role = "ctb"))
+Description: Compute pairwise Moran's I statistics between genes in spatial
+    transcriptomics data. Uses optimized BLAS matrix operations for high
+    performance computation. Supports both dense and sparse matrices.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Depends: R (>= 3.5.0)
+Imports:
+    Rcpp (>= 1.0.0),
+    Matrix,
+    methods
+LinkingTo:
+    Rcpp,
+    RcppArmadillo
+RoxygenNote: 7.2.3
+SystemRequirements: C++17
+NeedsCompilation: yes
