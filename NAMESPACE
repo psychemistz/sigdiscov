@@ -4,6 +4,8 @@ useDynLib(sigdiscov, .registration = TRUE)
 importFrom(Rcpp, evalCpp)
 importFrom(Matrix, sparseMatrix, readMM)
 importFrom(methods, is, as)
+importFrom(stats, sd)
+importFrom(utils, read.csv, read.table)
 
 # Moran's I functions
 export(pairwise_moran)
