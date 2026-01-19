@@ -200,9 +200,7 @@ The package uses BLAS matrix operations to compute pairwise Moran's I efficientl
 
 If you use this package, please cite:
 
-```
 Beibei Ru, Lanqi Gong, Emily Yang, Seongyong Park, George Zaki, Kenneth Aldape, Lalage Wakefield, Peng Jiang. Inference of secreted protein activities in intercellular communication. [Link](https://github.com/data2intelligence/SecAct)
-```
 
 ## License
 
