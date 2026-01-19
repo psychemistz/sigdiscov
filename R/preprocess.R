@@ -197,15 +197,23 @@ run_pipeline <- function(spaceranger_dir,
 #'
 #' Save pairwise Moran's I results to a file in lower triangular format.
 #'
-#' @param moran_matrix Matrix of pairwise Moran's I values.
+#' @param result Matrix of pairwise Moran's I values, or a list containing a
+#'   'moran' element (as returned by \code{run_pipeline}).
 #' @param output_file Path to output file.
 #' @param verbose Print progress messages. Default: TRUE.
 #'
 #' @return Invisibly returns the output file path.
 #'
 #' @export
-save_moran_result <- function(moran_matrix, output_file, verbose = TRUE) {
+save_moran_result <- function(result, output_file, verbose = TRUE) {
   if (verbose) cat("Saving result to", output_file, "...\n")
+
+  # Handle list input (from run_pipeline)
+  if (is.list(result) && "moran" %in% names(result)) {
+    moran_matrix <- result$moran
+  } else {
+    moran_matrix <- result
+  }
 
   n <- nrow(moran_matrix)
   con <- file(output_file, "w")

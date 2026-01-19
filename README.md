@@ -2,15 +2,16 @@
 
 **Pairwise Moran's I for Spatial Transcriptomics**
 
-An R package for computing pairwise Moran's I statistics between genes in spatial transcriptomics data. Uses optimized BLAS matrix operations for high-performance computation.
+An R package for computing pairwise Moran's I statistics between genes in spatial transcriptomics data. Uses optimized BLAS matrix operations via RcppArmadillo for high-performance computation.
 
 ## Features
 
 - Fast pairwise Moran's I computation using matrix multiplication (BLAS)
 - Support for 10x Visium spatial transcriptomics data
 - Built-in VST normalization via sctransform
-- Sparse matrix support
+- Sparse matrix support for memory efficiency
 - Complete pipeline from raw Space Ranger output to Moran's I results
+- Compatible with pre-processed expression matrices
 
 ## Installation
 
@@ -20,19 +21,19 @@ An R package for computing pairwise Moran's I statistics between genes in spatia
 # Install devtools if not already installed
 install.packages("devtools")
 
-# Install sigdiscov from the sigdiscov subdirectory
+# Install sigdiscov
 devtools::install_github("psychemistz/sigdiscov", subdir = "sigdiscov")
 ```
 
 ### Dependencies
 
-Required:
+**Required:**
 - R (>= 3.5.0)
 - Rcpp (>= 1.0.0)
 - RcppArmadillo
 - Matrix
 
-Optional (for VST normalization):
+**Optional (for VST normalization):**
 - sctransform
 
 ```r
@@ -42,7 +43,7 @@ install.packages("sctransform")
 
 ## Quick Start
 
-### Full Pipeline (Recommended)
+### Option 1: Full Pipeline (Recommended)
 
 Run the complete analysis from raw Space Ranger output:
 
@@ -57,14 +58,14 @@ moran_matrix <- result$moran
 gene_names <- result$gene_names
 ```
 
-### Step-by-Step Analysis
+### Option 2: Step-by-Step Analysis
 
 For more control over each step:
 
 ```r
 library(sigdiscov)
 
-# Step 1: Load Visium data
+# Step 1: Load Visium data from Space Ranger output
 visium <- load_visium_data("path/to/spaceranger_output")
 visium <- filter_in_tissue(visium)
 
@@ -79,26 +80,34 @@ result <- pairwise_moran(
   data_vst,
   spot_coords,
   max_radius = 5,
-  platform = "visium"
+  platform = "visium",
+  same_spot = FALSE
 )
+
+# Save results
+save_moran_result(result, "output.tsv")
 ```
 
-### Using Pre-processed Data
+### Option 3: Using Pre-processed Data
 
-If you already have normalized expression data:
+If you already have a normalized expression matrix (e.g., VST-transformed):
 
 ```r
 library(sigdiscov)
 
 # Load your data (genes x spots matrix)
+# Column names should be in "ROWxCOL" format (e.g., "5x10", "5x12")
 data <- read.table("expression.tsv", header = TRUE, row.names = 1)
 data <- as.matrix(data)
 
-# Parse spot coordinates from column names (format: "ROWxCOL")
+# Parse spot coordinates from column names
 spot_coords <- parse_spot_names(colnames(data))
 
 # Compute pairwise Moran's I
-result <- pairwise_moran(data, spot_coords)
+result <- pairwise_moran(data, spot_coords, max_radius = 3)
+
+# Save results
+save_moran_result(result, "moran_output.tsv")
 ```
 
 ## Functions
@@ -107,9 +116,9 @@ result <- pairwise_moran(data, spot_coords)
 
 | Function | Description |
 |----------|-------------|
-| `load_visium_data()` | Load Visium data from Space Ranger output |
+| `load_visium_data()` | Load Visium data from Space Ranger output directory |
 | `filter_in_tissue()` | Filter to in-tissue spots only |
-| `get_spot_coords()` | Extract spot coordinates for Moran's I |
+| `get_spot_coords()` | Extract spot coordinates for Moran's I computation |
 
 ### Preprocessing
 
@@ -148,13 +157,44 @@ result <- pairwise_moran(data, spot_coords)
 | `mode` | "paired", "first", or "single" | "paired" |
 | `verbose` | Print progress messages | TRUE |
 
+### vst_transform()
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `counts` | Raw count matrix (genes x spots) | required |
+| `min_cells` | Minimum cells expressing a gene | 5 |
+| `n_genes` | Genes for model fitting | 2000 |
+| `verbose` | Print progress messages | TRUE |
+
+## Input/Output Formats
+
+### Input: Expression Matrix
+
+- Tab-separated file with genes as rows, spots as columns
+- First row: spot names in "ROWxCOL" format (e.g., `5x10`, `5x12`)
+- First column: gene names
+- Values: normalized expression (VST recommended)
+
+```
+        5x10    5x12    6x11    6x13
+GeneA   0.5     -0.2    1.3     0.8
+GeneB   -0.1    0.4     -0.5    0.2
+```
+
+### Output: Moran's I Matrix
+
+- Lower triangular matrix (tab-separated)
+- Each row i contains values for gene i with genes 1 to i
+- Can be loaded back with `load_moran_result()`
+
 ## Performance
 
 The package uses BLAS matrix operations to compute pairwise Moran's I efficiently:
 
 - **Algorithm**: Reformulated as `Result = X @ W' @ X^T / sum(W')`
-- **Typical speedup**: ~2,000x compared to naive implementation
+- **Typical speedup**: ~2,000x compared to naive element-wise implementation
 - **Memory**: O(n_genes^2) for result matrix
+- **Example**: 19,729 genes x 3,813 spots completes in ~2 minutes (R) or ~15 seconds (C++ standalone)
 
 ## Citation
 
