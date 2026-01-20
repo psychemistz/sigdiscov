@@ -37,6 +37,10 @@ cpp_compute_spatial_correlation <- function(z_f, z_g, W, mode = 0L) {
     .Call(`_sigdiscov_cpp_compute_spatial_correlation`, z_f, z_g, W, mode)
 }
 
+cpp_moving_avg_smooth <- function(y, window_size = 3L) {
+    .Call(`_sigdiscov_cpp_moving_avg_smooth`, y, window_size)
+}
+
 cpp_savgol_smooth <- function(y, window_size = 5L, poly_order = 2L) {
     .Call(`_sigdiscov_cpp_savgol_smooth`, y, window_size, poly_order)
 }

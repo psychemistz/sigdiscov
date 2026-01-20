@@ -219,20 +219,75 @@ double cpp_compute_spatial_correlation(
 }
 
 // =============================================================================
-// Savitzky-Golay smoothing filter
+// Moving average smoothing for I(r) curves (SPIKE REMOVAL)
 //
-// Applies polynomial smoothing to remove spikes and noise from the I(r) curve,
-// revealing the underlying trend for reliable ΔI computation.
+// Simple moving average that effectively removes spikes by averaging
+// neighboring values. This is the default smoother for delta I computation.
 //
-// The filter fits a polynomial of specified order to a window of points and
-// uses the fitted value at the center point. This preserves overall trend
-// direction while smoothing local fluctuations.
+// @param y Input vector to smooth (raw I(r) curve)
+// @param window_size Window size for averaging (default: 3)
+//
+// @return Smoothed vector with spikes removed
+// =============================================================================
+// [[Rcpp::export]]
+arma::vec cpp_moving_avg_smooth(
+    const arma::vec& y,
+    int window_size = 3
+) {
+    int n = y.n_elem;
+
+    if (n <= 1) return y;
+
+    // Ensure window is odd
+    if (window_size % 2 == 0) {
+        window_size++;
+    }
+
+    if (window_size > n) {
+        window_size = (n % 2 == 1) ? n : n - 1;
+    }
+
+    if (window_size < 3) {
+        return y;
+    }
+
+    int half_window = window_size / 2;
+    arma::vec y_smooth(n);
+
+    for (int i = 0; i < n; i++) {
+        double sum = 0.0;
+        int count = 0;
+
+        for (int j = -half_window; j <= half_window; j++) {
+            int idx = i + j;
+
+            // Handle boundaries by reflection
+            if (idx < 0) idx = -idx;
+            if (idx >= n) idx = 2 * n - idx - 2;
+
+            if (idx >= 0 && idx < n) {
+                sum += y(idx);
+                count++;
+            }
+        }
+
+        y_smooth(i) = (count > 0) ? sum / count : y(i);
+    }
+
+    return y_smooth;
+}
+
+// =============================================================================
+// Savitzky-Golay smoothing filter (EDGE PRESERVING - legacy)
+//
+// Applies polynomial smoothing while preserving edges/spikes.
+// NOTE: This preserves spikes. Use cpp_moving_avg_smooth to remove spikes.
 //
 // @param y Input vector to smooth (raw I(r) curve)
 // @param window_size Window size for the filter (must be odd, default: 5)
 // @param poly_order Polynomial order for fitting (default: 2)
 //
-// @return Smoothed vector of same length (spike-free trend)
+// @return Smoothed vector (edge-preserving)
 // =============================================================================
 // [[Rcpp::export]]
 arma::vec cpp_savgol_smooth(
@@ -589,7 +644,7 @@ Rcpp::List cpp_compute_single_signature(
     );
 
     // Smooth the curve
-    arma::vec I_smooth = cpp_savgol_smooth(I_raw, smooth_window, smooth_poly);
+    arma::vec I_smooth = cpp_moving_avg_smooth(I_raw, smooth_window);
 
     // Compute signed delta I
     Rcpp::List sig = cpp_compute_signed_delta_I(I_smooth, radii);
@@ -918,7 +973,7 @@ Rcpp::DataFrame cpp_compute_all_signatures(
         arma::vec I_raw = compute_moran_curve_with_weights(z_f, z_g, W_list, mode);
 
         // Smooth the curve
-        arma::vec I_smooth = cpp_savgol_smooth(I_raw, smooth_window, smooth_poly);
+        arma::vec I_smooth = cpp_moving_avg_smooth(I_raw, smooth_window);
 
         // Compute signature
         SignatureResult sig = compute_signature_internal(I_smooth, radii);
@@ -1063,7 +1118,7 @@ Rcpp::List cpp_compute_delta_I_matrix(
             }
 
             // Smooth the curve
-            arma::vec I_smooth = cpp_savgol_smooth(I_raw, smooth_window, smooth_poly);
+            arma::vec I_smooth = cpp_moving_avg_smooth(I_raw, smooth_window);
 
             // Compute signed delta I
             SignatureResult sig = compute_signature_internal(I_smooth, radii);
@@ -1206,7 +1261,7 @@ Rcpp::List cpp_compute_delta_I_matrix_chunked(
                 }
 
                 // Smooth the curve
-                arma::vec I_smooth = cpp_savgol_smooth(I_raw, smooth_window, smooth_poly);
+                arma::vec I_smooth = cpp_moving_avg_smooth(I_raw, smooth_window);
 
                 // Compute signed delta I
                 SignatureResult sig = compute_signature_internal(I_smooth, radii);
@@ -1380,7 +1435,7 @@ Rcpp::List cpp_compute_delta_I_matrix_IND_fast(
                     I_raw(r) = I_chunk(i, j, r);
                 }
 
-                arma::vec I_smooth = cpp_savgol_smooth(I_raw, smooth_window, smooth_poly);
+                arma::vec I_smooth = cpp_moving_avg_smooth(I_raw, smooth_window);
                 SignatureResult sig = compute_signature_internal(I_smooth, radii);
 
                 delta_I_matrix(global_i, j) = sig.delta_I_signed;
@@ -1498,7 +1553,7 @@ Rcpp::List cpp_compute_delta_I_matrix_directional(
             }
 
             // Smooth and compute delta I
-            arma::vec I_smooth = cpp_savgol_smooth(I_raw, smooth_window, smooth_poly);
+            arma::vec I_smooth = cpp_moving_avg_smooth(I_raw, smooth_window);
             SignatureResult sig = compute_signature_internal(I_smooth, radii);
 
             delta_I_matrix(g, f) = sig.delta_I_signed;
@@ -1763,10 +1818,10 @@ Rcpp::DataFrame cpp_compute_four_deltas(
         }
 
         // Smooth all curves
-        arma::vec I_ring_moran_smooth = cpp_savgol_smooth(I_ring_moran, smooth_window, smooth_poly);
-        arma::vec I_cir_moran_smooth = cpp_savgol_smooth(I_cir_moran, smooth_window, smooth_poly);
-        arma::vec I_ring_ind_smooth = cpp_savgol_smooth(I_ring_ind, smooth_window, smooth_poly);
-        arma::vec I_cir_ind_smooth = cpp_savgol_smooth(I_cir_ind, smooth_window, smooth_poly);
+        arma::vec I_ring_moran_smooth = cpp_moving_avg_smooth(I_ring_moran, smooth_window);
+        arma::vec I_cir_moran_smooth = cpp_moving_avg_smooth(I_cir_moran, smooth_window);
+        arma::vec I_ring_ind_smooth = cpp_moving_avg_smooth(I_ring_ind, smooth_window);
+        arma::vec I_cir_ind_smooth = cpp_moving_avg_smooth(I_cir_ind, smooth_window);
 
         // Compute signed delta I for all 4 types
         SignatureResult sig_ring_moran = compute_signature_internal(I_ring_moran_smooth, radii);
@@ -1967,7 +2022,7 @@ Rcpp::List cpp_compute_delta_I_matrix_unified(
                     I_raw(r) = I_chunk(i, j, r);
                 }
 
-                arma::vec I_smooth = cpp_savgol_smooth(I_raw, smooth_window, smooth_poly);
+                arma::vec I_smooth = cpp_moving_avg_smooth(I_raw, smooth_window);
                 SignatureResult sig = compute_signature_internal(I_smooth, radii);
 
                 delta_I_matrix(global_i, j) = sig.delta_I_signed;

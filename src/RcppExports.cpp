@@ -148,6 +148,18 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// cpp_moving_avg_smooth
+arma::vec cpp_moving_avg_smooth(const arma::vec& y, int window_size);
+RcppExport SEXP _sigdiscov_cpp_moving_avg_smooth(SEXP ySEXP, SEXP window_sizeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< int >::type window_size(window_sizeSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpp_moving_avg_smooth(y, window_size));
+    return rcpp_result_gen;
+END_RCPP
+}
 // cpp_savgol_smooth
 arma::vec cpp_savgol_smooth(const arma::vec& y, int window_size, int poly_order);
 RcppExport SEXP _sigdiscov_cpp_savgol_smooth(SEXP ySEXP, SEXP window_sizeSEXP, SEXP poly_orderSEXP) {
@@ -439,6 +451,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sigdiscov_cpp_compute_moran_full_sparse", (DL_FUNC) &_sigdiscov_cpp_compute_moran_full_sparse, 9},
     {"_sigdiscov_cpp_create_ring_weight_matrix", (DL_FUNC) &_sigdiscov_cpp_create_ring_weight_matrix, 7},
     {"_sigdiscov_cpp_compute_spatial_correlation", (DL_FUNC) &_sigdiscov_cpp_compute_spatial_correlation, 4},
+    {"_sigdiscov_cpp_moving_avg_smooth", (DL_FUNC) &_sigdiscov_cpp_moving_avg_smooth, 2},
     {"_sigdiscov_cpp_savgol_smooth", (DL_FUNC) &_sigdiscov_cpp_savgol_smooth, 3},
     {"_sigdiscov_cpp_compute_signed_delta_I", (DL_FUNC) &_sigdiscov_cpp_compute_signed_delta_I, 2},
     {"_sigdiscov_cpp_compute_moran_curve", (DL_FUNC) &_sigdiscov_cpp_compute_moran_curve, 7},
