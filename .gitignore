@@ -1,3 +1,26 @@
+# Eclipse/IDE files
 .cproject
 .project
 .settings
+.Rproj.user/
+*.Rproj
+
+# R package build artifacts
+*.tar.gz
+*.Rcheck/
+*.o
+*.so
+*.dll
+
+# Build directories
+Release/
+Debug/
+
+# R session files
+.Rhistory
+.RData
+.Ruserdata
+
+# OS files
+.DS_Store
+Thumbs.db
