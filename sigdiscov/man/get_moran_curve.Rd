@@ -26,28 +26,54 @@ get_moran_curve(
 
 \item{target_gene}{Name or row index of the target gene.}
 
-\item{radii}{Numeric vector of distance bin edges. Default: seq(100, 600, 100).}
+\item{radii}{Numeric vector of distance bin edges. Default: \code{seq(100, 600, 100)}.}
 
 \item{mode}{Computation mode: "bivariate" or "directional". Default: "bivariate".}
 
-\item{sender_percentile}{For directional mode: percentile threshold. Default: 75.}
+\item{sender_percentile}{For directional mode: percentile threshold for senders.
+Default: 75.}
 
-\item{smooth_window}{Savitzky-Golay window size. Default: 5.}
+\item{smooth_window}{Savitzky-Golay smoothing window size. Default: 5.}
 
-\item{smooth_poly}{Polynomial order. Default: 2.}
+\item{smooth_poly}{Savitzky-Golay polynomial order. Default: 2.}
 
 \item{coord_scale}{Scale factor for coordinates. Default: 1.}
 }
 \value{
-A list with radii, I_raw, I_smooth, delta_I_signed, and other metrics.
+A list containing: radii (distance bin edges), I_raw (raw I(r) values),
+  I_smooth (smoothed values), delta_I, delta_I_signed, sign (+1 or -1),
+  I_max, I_min, I_short, I_long, auc, peak_idx, factor_gene, target_gene,
+  mode, and for directional mode: n_senders, n_receivers.
 }
 \description{
-Computes the full I(r) curve for a single factor-gene pair.
+Computes the full I(r) curve for a single factor-gene pair, useful for
+visualization and detailed analysis.
 }
 \examples{
 \dontrun{
-curve <- get_moran_curve(expr_vst, coords, "IL1B", "COL1A1")
-plot(curve$radii, curve$I_smooth, type = "l")
+# Get curve for a specific gene pair
+curve <- get_moran_curve(
+  expr_matrix = expr_vst,
+  spot_coords = coords,
+  factor_gene = "IL1B",
+  target_gene = "COL1A1",
+  mode = "bivariate",
+  coord_scale = 100
+)
+
+# Plot the curve
+plot(curve$radii, curve$I_raw, type = "p", pch = 19,
+     xlab = "Distance (um)", ylab = "Moran's I",
+     main = paste(curve$factor_gene, "->", curve$target_gene))
+lines(curve$radii, curve$I_smooth, col = "blue", lwd = 2)
+abline(h = 0, lty = 2, col = "gray")
+legend("topright",
+       legend = paste("delta_I_signed =", round(curve$delta_I_signed, 4)),
+       bty = "n")
 }
 
+}
+\seealso{
+\code{\link{compute_signed_delta_I}} for batch processing,
+  \code{\link{plot_moran_curve}} for visualization.
 }

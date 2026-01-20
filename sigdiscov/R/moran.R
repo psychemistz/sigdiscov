@@ -9,7 +9,7 @@
 #'   columns named 'row' and 'col', or be a 2-column matrix.
 #' @param max_radius Maximum grid radius for computing distances. Default: 5.
 #' @param platform Platform type: "visium" (default) or "old".
-#' @param same_spot Whether to consider the same spot in computation. Default: FALSE.
+#' @param same_spot Whether to consider the same spot in computation. Default: TRUE.
 #' @param mode Computation mode: "paired" (all pairs), "first" (pairs with first gene),
 #'   or "single" (diagonal only). Default: "paired".
 #' @param verbose Print progress messages. Default: TRUE.
@@ -35,7 +35,7 @@ pairwise_moran <- function(data,
                            spot_coords,
                            max_radius = 5,
                            platform = c("visium", "old"),
-                           same_spot = FALSE,
+                           same_spot = TRUE,
                            mode = c("paired", "first", "single"),
                            verbose = TRUE) {
 

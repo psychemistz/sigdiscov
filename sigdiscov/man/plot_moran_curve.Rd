@@ -19,13 +19,20 @@ plot_moran_curve(
 
 \item{show_smooth}{Show smoothed curve line. Default: TRUE.}
 
-\item{title}{Custom plot title. If NULL, auto-generated.}
+\item{title}{Custom plot title. If NULL, auto-generated from gene names.}
 
-\item{...}{Additional arguments passed to plot().}
+\item{...}{Additional arguments passed to \code{plot()}.}
 }
 \value{
 Invisibly returns the curve_result.
 }
 \description{
 Visualize the distance-dependent correlation curve for a gene pair.
+}
+\examples{
+\dontrun{
+curve <- get_moran_curve(expr_vst, coords, "IL1B", "COL1A1")
+plot_moran_curve(curve)
+}
+
 }

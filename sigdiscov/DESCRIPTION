@@ -1,33 +1,22 @@
 Package: sigdiscov
 Type: Package
 Title: Spatial Correlation Analysis for Spatial Transcriptomics
-Version: 1.2.0
-Date: 2026-01-20
+Version: 1.1.0
+Date: 2025-01-19
 Authors@R: person("Seongyong", "Park", email = "seongyong.park@nih.gov", role = c("aut", "cre"))
 Description: Compute pairwise Moran's I statistics and signed delta I signatures
     for spatial transcriptomics data. The signed delta I method computes
     distance-dependent spatial correlation curves to distinguish true responsive
     genes from constitutively expressed genes. Supports both bivariate (symmetric)
-    and directional (I_ND) correlation modes for spot-based platforms (Visium), and
-    cell-type-aware I_ND computation for single-cell resolution platforms (CosMx,
-    Xenium, MERFISH). Uses optimized BLAS matrix operations via RcppArmadillo for
-    high performance. Includes utilities for loading 10x Visium data and VST
-    normalization.
+    and directional (I_ND) correlation modes. Uses optimized BLAS matrix operations
+    via RcppArmadillo for high performance. Includes utilities for loading 10x
+    Visium data and VST normalization.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Depends: R (>= 3.5.0)
-Imports:
-    Rcpp (>= 1.0.0),
-    Matrix,
-    methods,
-    stats,
-    graphics
-Suggests:
-    sctransform,
-    testthat (>= 3.0.0)
-LinkingTo:
-    Rcpp,
-    RcppArmadillo
+Imports: Rcpp (>= 1.0.0), Matrix, methods, stats, graphics
+Suggests: sctransform, testthat (>= 3.0.0)
+LinkingTo: Rcpp, RcppArmadillo
 RoxygenNote: 7.3.3
 SystemRequirements: C++17
 NeedsCompilation: yes
