@@ -1,25 +1,36 @@
 Package: sigdiscov
 Type: Package
-Title: Pairwise Moran's I for Spatial Transcriptomics
-Version: 1.0.0
-Date: 2024-01-18
+Title: Spatial Correlation Analysis for Spatial Transcriptomics
+Version: 1.2.0
+Date: 2026-01-20
 Authors@R: c(
-    person("Peng", "Jiang", email = "pengj@alumni.princeton.edu", role = c("aut", "cre")),
-    person("Seongyong", "Park", role = "ctb"))
-Description: Compute pairwise Moran's I statistics between genes in spatial
-    transcriptomics data. Uses optimized BLAS matrix operations for high
-    performance computation. Supports both dense and sparse matrices.
+    person("Peng", "Jiang", email = "peng.jiang@nih.gov", role = c("aut", "cre")),
+    person("Seongyong", "Park", email = "seongyong.park@nih.gov", role = "aut"))
+Description: Compute pairwise Moran's I statistics and signed delta I signatures
+    for spatial transcriptomics data. The signed delta I method computes
+    distance-dependent spatial correlation curves to distinguish true responsive
+    genes from constitutively expressed genes. Supports both bivariate (symmetric)
+    and directional (I_ND) correlation modes for spot-based platforms (Visium), and
+    cell-type-aware I_ND computation for single-cell resolution platforms (CosMx,
+    Xenium, MERFISH). Uses optimized BLAS matrix operations via RcppArmadillo for
+    high performance. Includes utilities for loading 10x Visium data and VST
+    normalization.
 License: MIT + file LICENSE
 Encoding: UTF-8
-LazyData: true
 Depends: R (>= 3.5.0)
 Imports:
     Rcpp (>= 1.0.0),
     Matrix,
-    methods
+    methods,
+    stats,
+    graphics
+Suggests:
+    sctransform,
+    testthat (>= 3.0.0)
 LinkingTo:
     Rcpp,
     RcppArmadillo
-RoxygenNote: 7.2.3
+RoxygenNote: 7.3.3
 SystemRequirements: C++17
 NeedsCompilation: yes
+Config/testthat/edition: 3

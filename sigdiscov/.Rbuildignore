@@ -1,0 +1,11 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^README\.Rmd$
+^LICENSE\.md$
+^\.github$
+^codecov\.yml$
+^\.travis\.yml$
+^appveyor\.yml$
+^cran-comments\.md$
+^CRAN-RELEASE$
+^\.Rbuildignore$
