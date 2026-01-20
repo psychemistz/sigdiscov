@@ -3,9 +3,7 @@ Type: Package
 Title: Spatial Correlation Analysis for Spatial Transcriptomics
 Version: 1.2.0
 Date: 2026-01-20
-Authors@R: c(
-    person("Peng", "Jiang", email = "peng.jiang@nih.gov", role = c("aut", "cre")),
-    person("Seongyong", "Park", email = "seongyong.park@nih.gov", role = "aut"))
+Authors@R: person("Seongyong", "Park", email = "seongyong.park@nih.gov", role = c("aut", "cre"))
 Description: Compute pairwise Moran's I statistics and signed delta I signatures
     for spatial transcriptomics data. The signed delta I method computes
     distance-dependent spatial correlation curves to distinguish true responsive

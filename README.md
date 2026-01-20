@@ -15,14 +15,14 @@ Compute pairwise Moran's I statistics, signed delta I signatures, and directiona
 | **v1.1.0** | Signed delta I signatures, distance-dependent spatial correlation curves |
 | **v1.0.0** | Basic pairwise Moran's I for Visium |
 
-## R Package Installation
+## Installation
 
 ```r
 # Install latest version from GitHub
-devtools::install_github("psychemistz/sigdiscov", subdir = "sigdiscov")
+devtools::install_github("psychemistz/sigdiscov")
 
 # Install specific version
-devtools::install_github("psychemistz/sigdiscov@v1.2.0", subdir = "sigdiscov")
+devtools::install_github("psychemistz/sigdiscov@v1.2.0")
 ```
 
 ## Key Features
@@ -119,28 +119,6 @@ results <- permutation_test_multi_factor(
 sig_genes <- results[["IL1B"]][results[["IL1B"]]$p_adj < 0.05, ]
 ```
 
-## Standalone C++ Tool
-
-For command-line usage without R:
-
-```bash
-# Build
-cd accelerate/Release
-make
-
-# Run
-./pairwise_moran_I -i input.tsv -o output.txt
-```
-
-### Options
-
-```
--i    Input file (tab-separated, genes x spots)
--o    Output file
--r    Maximum grid radius (default: 5)
--p    Platform: 0=Visium, 1=Old ST (default: 0)
-```
-
 ## Performance
 
 - **BLAS backend**: Apple Accelerate (Mac), OpenBLAS/MKL (Linux/Windows)
@@ -148,26 +126,13 @@ make
 - **Single-cell I_ND**: Optimized for datasets with 100k+ cells
 - **Permutation testing**: Vectorized BLAS operations for multi-factor tests
 
-## Repository Structure
+## Citation
 
-```
-sigdiscov/
-├── sigdiscov/           # R package
-│   ├── R/
-│   │   ├── moran.R           # Core Moran's I functions
-│   │   ├── signed_delta_I.R  # Signed delta I signatures
-│   │   ├── singlecell.R      # Single-cell ST functions
-│   │   ├── permutation.R     # Permutation testing
-│   │   └── visium.R          # Visium data loading
-│   └── src/             # C++ source (RcppArmadillo)
-├── accelerate/          # Standalone C++ tool
-└── dataset/             # Example data
-```
+Beibei Ru, Lanqi Gong, Emily Yang, Seongyong Park, George Zaki, Kenneth Aldape, Lalage Wakefield, Peng Jiang. Inference of secreted protein activities in intercellular communication. [SecAct](https://github.com/data2intelligence/SecAct)
 
-## Authors
+## Author
 
-- Peng Jiang (peng.jiang@nih.gov)
-- Seongyong Park (seongyong.park@nih.gov)
+Seongyong Park (seongyong.park@nih.gov)
 
 ## License
 
