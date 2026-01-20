@@ -1052,9 +1052,6 @@ Rcpp::List cpp_compute_delta_I_matrix(
 
     arma::mat delta_I_matrix(n_genes, n_genes);
 
-    int total_pairs = n_genes * n_genes;
-    int processed = 0;
-
     for (int i = 0; i < n_genes; i++) {
         for (int j = 0; j < n_genes; j++) {
             // Extract I(r) curve for this pair
@@ -1070,8 +1067,6 @@ Rcpp::List cpp_compute_delta_I_matrix(
             SignatureResult sig = compute_signature_internal(I_smooth, radii);
 
             delta_I_matrix(i, j) = sig.delta_I_signed;
-
-            processed++;
         }
 
         // Progress update and interrupt check

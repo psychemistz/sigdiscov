@@ -4,13 +4,16 @@
 \alias{load_moran_result}
 \title{Load Moran's I Results}
 \usage{
-load_moran_result(input_file)
+load_moran_result(input_file, gene_names = NULL)
 }
 \arguments{
 \item{input_file}{Path to input file.}
+
+\item{gene_names}{Optional character vector of gene names for row/column names.
+If NULL, tries to read from a file with same name but .genes extension.}
 }
 \value{
-A symmetric matrix of pairwise Moran's I values.
+A symmetric matrix of pairwise Moran's I values with row/column names.
 }
 \description{
 Load pairwise Moran's I results from a file in lower triangular format.
