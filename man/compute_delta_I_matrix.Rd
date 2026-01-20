@@ -18,23 +18,17 @@ compute_delta_I_matrix(
 )
 }
 \arguments{
-\item{expr_matrix}{A matrix of gene expression values (genes x spots).
-VST-normalized values are recommended.}
+\item{expr_matrix}{A matrix of gene expression values (genes x spots). VST-normalized recommended.}
 
-\item{spot_coords}{Spot coordinates as a data frame with 'row' and 'col' columns,
-or a 2-column matrix.}
+\item{spot_coords}{Spot coordinates as a data frame with row/col columns, or a 2-column matrix.}
 
-\item{radii}{Numeric vector of distance bin edges. Default: \code{seq(100, 600, 100)}.}
+\item{radii}{Numeric vector of distance bin edges. Default: seq(100, 600, 100).}
 
-\item{mode}{Computation mode: "bivariate" (symmetric, all spots) or "directional"
-(I_ND with sender/receiver split). Default: "bivariate".}
+\item{mode}{Computation mode: "bivariate" (symmetric) or "directional" (I_ND). Default: "bivariate".}
 
-\item{sender_percentile}{For directional mode: percentile threshold for defining
-sender spots. Default: 75.}
+\item{sender_percentile}{For directional mode: percentile threshold for senders. Default: 75.}
 
-\item{chunk_size}{Number of target genes to process at once for memory efficiency.
-Default: 1000. Set to NULL to disable chunking (faster but uses more memory).
-Only used in bivariate mode.}
+\item{chunk_size}{Number of genes per chunk for memory efficiency. Default: 1000. NULL disables chunking.}
 
 \item{smooth_window}{Savitzky-Golay smoothing window size (must be odd). Default: 5.}
 
@@ -45,9 +39,7 @@ Only used in bivariate mode.}
 \item{verbose}{Print progress messages. Default: TRUE.}
 }
 \value{
-A list containing: delta_I_signed (n_genes x n_genes matrix where
-  entry [i,j] is the signed delta I with gene i as target and gene j as factor),
-  n_genes, n_spots, n_radii, radii.
+A list with delta_I_signed (n_genes x n_genes matrix), n_genes, n_spots, n_radii, radii.
 }
 \description{
 Computes signed delta I for ALL gene pairs at once using an optimized

@@ -30,8 +30,7 @@ get_moran_curve(
 
 \item{mode}{Computation mode: "bivariate" or "directional". Default: "bivariate".}
 
-\item{sender_percentile}{For directional mode: percentile threshold for senders.
-Default: 75.}
+\item{sender_percentile}{For directional mode: percentile threshold for senders. Default: 75.}
 
 \item{smooth_window}{Savitzky-Golay smoothing window size. Default: 5.}
 
@@ -40,10 +39,7 @@ Default: 75.}
 \item{coord_scale}{Scale factor for coordinates. Default: 1.}
 }
 \value{
-A list containing: radii (distance bin edges), I_raw (raw I(r) values),
-  I_smooth (smoothed values), delta_I, delta_I_signed, sign (+1 or -1),
-  I_max, I_min, I_short, I_long, auc, peak_idx, factor_gene, target_gene,
-  mode, and for directional mode: n_senders, n_receivers.
+A list with radii, I_raw, I_smooth, delta_I, delta_I_signed, sign, I_max, I_min, I_short, I_long, auc, peak_idx.
 }
 \description{
 Computes the full I(r) curve for a single factor-gene pair, useful for

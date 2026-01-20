@@ -18,41 +18,28 @@ compute_signed_delta_I(
 )
 }
 \arguments{
-\item{expr_matrix}{A matrix of gene expression values (genes x spots).
-VST-normalized values are recommended.}
+\item{expr_matrix}{A matrix of gene expression values (genes x spots). VST-normalized values are recommended.}
 
-\item{spot_coords}{Spot coordinates as a data frame with 'row' and 'col' columns,
-or a 2-column matrix. Coordinates should be in physical units (e.g., micrometers)
-or use \code{coord_scale} to convert.}
+\item{spot_coords}{Spot coordinates as a data frame with row/col columns, or a 2-column matrix in physical units.}
 
 \item{factor_gene}{Name or row index of the factor gene.}
 
-\item{radii}{Numeric vector of distance bin edges in same units as coordinates.
-Default: \code{seq(100, 600, 100)} for Visium in micrometers.}
+\item{radii}{Numeric vector of distance bin edges in same units as coordinates. Default: seq(100, 600, 100).}
 
-\item{mode}{Computation mode: "bivariate" (symmetric, all spots) or "directional"
-(I_ND with sender/receiver split). Default: "bivariate".}
+\item{mode}{Computation mode: "bivariate" (symmetric) or "directional" (I_ND with sender/receiver). Default: "bivariate".}
 
-\item{sender_percentile}{For directional mode: percentile threshold for defining
-sender spots. Spots with factor expression >= this percentile are senders.
-Default: 75 (top 25% expressors are senders).}
+\item{sender_percentile}{For directional mode: percentile threshold for senders. Default: 75.}
 
-\item{smooth_window}{Savitzky-Golay smoothing window size (must be odd).
-Default: 5.}
+\item{smooth_window}{Savitzky-Golay smoothing window size (must be odd). Default: 5.}
 
 \item{smooth_poly}{Savitzky-Golay polynomial order. Default: 2.}
 
-\item{coord_scale}{Scale factor for coordinates. For Visium grid coordinates,
-use ~100 to convert to micrometers. Default: 1.}
+\item{coord_scale}{Scale factor for coordinates. For Visium grid, use ~100 for micrometers. Default: 1.}
 
 \item{verbose}{Print progress messages. Default: TRUE.}
 }
 \value{
-A data frame with one row per gene containing: gene (name),
-  delta_I (unsigned magnitude), delta_I_signed (positive=decay/responder,
-  negative=increase/avoidance), sign (+1 or -1), I_short (correlation at
-  shortest distance), I_long (correlation at longest distance), I_max,
-  I_min, auc (area under curve), peak_radius_idx (radius of max |I|).
+A data frame with columns: gene, delta_I, delta_I_signed, sign, I_short, I_long, I_max, I_min, auc, peak_radius_idx.
 }
 \description{
 Computes distance-dependent spatial correlation between a factor gene and all

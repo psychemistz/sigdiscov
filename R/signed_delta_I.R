@@ -4,31 +4,18 @@
 #' other genes, then derives signed delta I signatures. This helps distinguish
 #' true responsive genes from constitutively expressed genes.
 #'
-#' @param expr_matrix A matrix of gene expression values (genes x spots).
-#'   VST-normalized values are recommended.
-#' @param spot_coords Spot coordinates as a data frame with 'row' and 'col' columns,
-#'   or a 2-column matrix. Coordinates should be in physical units (e.g., micrometers)
-#'   or use \code{coord_scale} to convert.
+#' @param expr_matrix A matrix of gene expression values (genes x spots). VST-normalized values are recommended.
+#' @param spot_coords Spot coordinates as a data frame with row/col columns, or a 2-column matrix in physical units.
 #' @param factor_gene Name or row index of the factor gene.
-#' @param radii Numeric vector of distance bin edges in same units as coordinates.
-#'   Default: \code{seq(100, 600, 100)} for Visium in micrometers.
-#' @param mode Computation mode: "bivariate" (symmetric, all spots) or "directional"
-#'   (I_ND with sender/receiver split). Default: "bivariate".
-#' @param sender_percentile For directional mode: percentile threshold for defining
-#'   sender spots. Spots with factor expression >= this percentile are senders.
-#'   Default: 75 (top 25% expressors are senders).
-#' @param smooth_window Savitzky-Golay smoothing window size (must be odd).
-#'   Default: 5.
+#' @param radii Numeric vector of distance bin edges in same units as coordinates. Default: seq(100, 600, 100).
+#' @param mode Computation mode: "bivariate" (symmetric) or "directional" (I_ND with sender/receiver). Default: "bivariate".
+#' @param sender_percentile For directional mode: percentile threshold for senders. Default: 75.
+#' @param smooth_window Savitzky-Golay smoothing window size (must be odd). Default: 5.
 #' @param smooth_poly Savitzky-Golay polynomial order. Default: 2.
-#' @param coord_scale Scale factor for coordinates. For Visium grid coordinates,
-#'   use ~100 to convert to micrometers. Default: 1.
+#' @param coord_scale Scale factor for coordinates. For Visium grid, use ~100 for micrometers. Default: 1.
 #' @param verbose Print progress messages. Default: TRUE.
 #'
-#' @return A data frame with one row per gene containing: gene (name),
-#'   delta_I (unsigned magnitude), delta_I_signed (positive=decay/responder,
-#'   negative=increase/avoidance), sign (+1 or -1), I_short (correlation at
-#'   shortest distance), I_long (correlation at longest distance), I_max,
-#'   I_min, auc (area under curve), peak_radius_idx (radius of max |I|).
+#' @return A data frame with columns: gene, delta_I, delta_I_signed, sign, I_short, I_long, I_max, I_min, auc, peak_radius_idx.
 #'
 #' @details
 #' The function computes bivariate Moran's I (or directional I_ND) at multiple
@@ -189,16 +176,12 @@ compute_signed_delta_I <- function(expr_matrix,
 #' @param target_gene Name or row index of the target gene.
 #' @param radii Numeric vector of distance bin edges. Default: \code{seq(100, 600, 100)}.
 #' @param mode Computation mode: "bivariate" or "directional". Default: "bivariate".
-#' @param sender_percentile For directional mode: percentile threshold for senders.
-#'   Default: 75.
+#' @param sender_percentile For directional mode: percentile threshold for senders. Default: 75.
 #' @param smooth_window Savitzky-Golay smoothing window size. Default: 5.
 #' @param smooth_poly Savitzky-Golay polynomial order. Default: 2.
 #' @param coord_scale Scale factor for coordinates. Default: 1.
 #'
-#' @return A list containing: radii (distance bin edges), I_raw (raw I(r) values),
-#'   I_smooth (smoothed values), delta_I, delta_I_signed, sign (+1 or -1),
-#'   I_max, I_min, I_short, I_long, auc, peak_idx, factor_gene, target_gene,
-#'   mode, and for directional mode: n_senders, n_receivers.
+#' @return A list with radii, I_raw, I_smooth, delta_I, delta_I_signed, sign, I_max, I_min, I_short, I_long, auc, peak_idx.
 #'
 #' @examples
 #' \dontrun{
@@ -448,26 +431,18 @@ abline(h = 0, lty = 2, col = "gray50")
 #' matrix multiplication approach. This is much faster than computing
 #' delta I for each factor separately when you need the full matrix.
 #'
-#' @param expr_matrix A matrix of gene expression values (genes x spots).
-#'   VST-normalized values are recommended.
-#' @param spot_coords Spot coordinates as a data frame with 'row' and 'col' columns,
-#'   or a 2-column matrix.
-#' @param radii Numeric vector of distance bin edges. Default: \code{seq(100, 600, 100)}.
-#' @param mode Computation mode: "bivariate" (symmetric, all spots) or "directional"
-#'   (I_ND with sender/receiver split). Default: "bivariate".
-#' @param sender_percentile For directional mode: percentile threshold for defining
-#'   sender spots. Default: 75.
-#' @param chunk_size Number of target genes to process at once for memory efficiency.
-#'   Default: 1000. Set to NULL to disable chunking (faster but uses more memory).
-#'   Only used in bivariate mode.
+#' @param expr_matrix A matrix of gene expression values (genes x spots). VST-normalized recommended.
+#' @param spot_coords Spot coordinates as a data frame with row/col columns, or a 2-column matrix.
+#' @param radii Numeric vector of distance bin edges. Default: seq(100, 600, 100).
+#' @param mode Computation mode: "bivariate" (symmetric) or "directional" (I_ND). Default: "bivariate".
+#' @param sender_percentile For directional mode: percentile threshold for senders. Default: 75.
+#' @param chunk_size Number of genes per chunk for memory efficiency. Default: 1000. NULL disables chunking.
 #' @param smooth_window Savitzky-Golay smoothing window size (must be odd). Default: 5.
 #' @param smooth_poly Savitzky-Golay polynomial order. Default: 2.
 #' @param coord_scale Scale factor for coordinates. Default: 1.
 #' @param verbose Print progress messages. Default: TRUE.
 #'
-#' @return A list containing: delta_I_signed (n_genes x n_genes matrix where
-#'   entry [i,j] is the signed delta I with gene i as target and gene j as factor),
-#'   n_genes, n_spots, n_radii, radii.
+#' @return A list with delta_I_signed (n_genes x n_genes matrix), n_genes, n_spots, n_radii, radii.
 #'
 #' @details
 #' This function is optimized for computing delta I for ALL gene pairs at once.

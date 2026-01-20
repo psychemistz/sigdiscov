@@ -9,7 +9,7 @@ pairwise_moran(
   spot_coords,
   max_radius = 5,
   platform = c("visium", "old"),
-  same_spot = TRUE,
+  same_spot = FALSE,
   mode = c("paired", "first", "single"),
   verbose = TRUE
 )
@@ -25,7 +25,7 @@ columns named 'row' and 'col', or be a 2-column matrix.}
 
 \item{platform}{Platform type: "visium" (default) or "old".}
 
-\item{same_spot}{Whether to consider the same spot in computation. Default: TRUE.}
+\item{same_spot}{Whether to consider the same spot in computation. Default: FALSE.}
 
 \item{mode}{Computation mode: "paired" (all pairs), "first" (pairs with first gene),
 or "single" (diagonal only). Default: "paired".}
