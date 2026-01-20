@@ -1,17 +1,18 @@
 # sigdiscov
 
-**Pairwise Moran's I for Spatial Transcriptomics**
+**Spatial Signature Discovery for Spatial Transcriptomics**
 
-An R package for computing pairwise Moran's I statistics between genes in spatial transcriptomics data. Uses optimized BLAS matrix operations via RcppArmadillo for high-performance computation.
+An R package for computing spatial correlation metrics between genes in spatial transcriptomics data, including pairwise Moran's I and signed delta I signatures. Uses optimized BLAS matrix operations via RcppArmadillo for high-performance computation.
 
 ## Features
 
 - Fast pairwise Moran's I computation using matrix multiplication (BLAS)
+- **Signed Delta I signatures** for identifying responsive genes vs. constitutive expression
+- **Four delta I types**: ring/circular weights x Moran's I/I_ND correlation
 - Support for 10x Visium spatial transcriptomics data
 - Built-in VST normalization via sctransform
 - Sparse matrix support for memory efficiency
-- Complete pipeline from raw Space Ranger output to Moran's I results
-- Compatible with pre-processed expression matrices
+- Complete pipeline from raw Space Ranger output to results
 
 ## Installation
 
@@ -88,53 +89,161 @@ result <- pairwise_moran(
 save_moran_result(result, "output.tsv")
 ```
 
-### Option 3: Using Pre-processed Data
+## Signed Delta I Signatures
 
-If you already have a normalized expression matrix (e.g., VST-transformed):
+Delta I captures distance-dependent spatial correlation patterns. A gene pair showing high correlation at short distances but low correlation at long distances (decay pattern) indicates a true responsive relationship, while flat patterns suggest constitutive expression.
+
+### Four Delta I Types
+
+| Delta Type | Weight | Correlation | Description |
+|------------|--------|-------------|-------------|
+| `delta_i_ring_moran` | Ring | Moran's I | Neighbors in distance band [r_inner, r_outer) |
+| `delta_i_cir_moran` | Circular | Moran's I | All neighbors in cumulative disk [0, r_outer) |
+| `delta_i_ring_ind` | Ring | I_ND | Ring weights with cosine similarity |
+| `delta_i_cir_ind` | Circular | I_ND | Circular weights with cosine similarity |
+
+### Unified Interface (Recommended)
+
+Compute delta I matrix for any combination of weight type and correlation type:
 
 ```r
 library(sigdiscov)
 
-# Load your data (genes x spots matrix)
-# Column names should be in "ROWxCOL" format (e.g., "5x10", "5x12")
-data <- read.table("expression.tsv", header = TRUE, row.names = 1)
-colnames(data) <- gsub("X", "", colnames(data))
-data <- as.matrix(data)
+# Load and prepare data
+visium <- load_visium_data("path/to/spaceranger_output")
+visium <- filter_in_tissue(visium)
+expr_vst <- vst_transform(visium$counts)
+coords <- get_spot_coords(visium)
 
-# Parse spot coordinates from column names
-spot_coords <- parse_spot_names(colnames(data))
+# Compute ring-based Moran's I delta matrix (default)
+result_ring_moran <- compute_delta_I_matrix_unified(
+  expr_matrix = expr_vst,
+  spot_coords = coords,
+  weight_type = "ring",           # "ring" or "circular"
+  correlation_type = "moran",     # "moran" or "ind"
+  radii = seq(150, 650, 100),     # Distance bins (Visium ~100 unit spacing)
+  coord_scale = 1,                # Scale factor for coordinates
+  chunk_size = 1000               # Memory-efficient chunking
+)
 
-# Compute pairwise Moran's I
-result <- pairwise_moran(data, spot_coords, max_radius = 3)
+# Access the matrix (rows = targets, cols = factors)
+delta_mat <- result_ring_moran$delta_I_signed
 
-# Save results
-save_moran_result(result, "moran_output.tsv")
+# Compute circular I_ND delta matrix
+result_cir_ind <- compute_delta_I_matrix_unified(
+  expr_matrix = expr_vst,
+  spot_coords = coords,
+  weight_type = "circular",
+  correlation_type = "ind"
+)
+```
+
+### Compute All 4 Types for Specific Factors
+
+For focused analysis on specific factor genes:
+
+```r
+# Compute all 4 delta types for IFNG and TGFB1
+results <- compute_four_deltas(
+  expr_matrix = expr_vst,
+  spot_coords = coords,
+  factor_genes = c("IFNG", "TGFB1"),
+  radii = seq(150, 650, 100)
+)
+
+# Access results for IFNG
+ifng_deltas <- results$IFNG
+head(ifng_deltas)
+#   gene      delta_i_ring_moran  delta_i_cir_moran  delta_i_ring_ind  delta_i_cir_ind
+# 1 GeneA     0.0234              0.0198             0.0312            0.0156
+# ...
+
+# Compare correlations between delta types
+cor(ifng_deltas[, c("delta_i_ring_moran", "delta_i_cir_moran",
+                     "delta_i_ring_ind", "delta_i_cir_ind")])
+```
+
+### Single Factor Analysis
+
+For detailed analysis of one factor:
+
+```r
+# Compute signatures for all genes against IL1B
+signatures <- compute_signed_delta_I(
+  expr_matrix = expr_vst,
+  spot_coords = coords,
+  factor_gene = "IL1B",
+  mode = "bivariate",  # or "directional" for I_ND
+  radii = seq(100, 600, 100)
+)
+
+# View top responders (decay pattern = positive delta_I_signed)
+head(signatures[order(-signatures$delta_I_signed), ])
+
+# View avoiders (increase pattern = negative delta_I_signed)
+head(signatures[order(signatures$delta_I_signed), ])
+```
+
+### Visualizing I(r) Curves
+
+```r
+# Get detailed curve for a gene pair
+curve <- get_moran_curve(
+  expr_matrix = expr_vst,
+  spot_coords = coords,
+  factor_gene = "IL1B",
+  target_gene = "COL1A1",
+  mode = "bivariate"
+)
+
+# Plot the curve
+plot_moran_curve(curve)
+
+# Manual plotting
+plot(curve$radii, curve$I_raw, type = "p", pch = 19,
+     xlab = "Distance", ylab = "Moran's I",
+     main = paste(curve$factor_gene, "->", curve$target_gene))
+lines(curve$radii, curve$I_smooth, col = "blue", lwd = 2)
+abline(h = 0, lty = 2)
+legend("topright",
+       legend = paste("delta_I_signed =", round(curve$delta_I_signed, 4)))
 ```
 
 ## Functions
 
-### Data Loading
+### Delta I Computation
 
 | Function | Description |
 |----------|-------------|
-| `load_visium_data()` | Load Visium data from Space Ranger output directory |
-| `filter_in_tissue()` | Filter to in-tissue spots only |
-| `get_spot_coords()` | Extract spot coordinates for Moran's I computation |
+| `compute_delta_I_matrix_unified()` | **Unified interface** for computing delta I matrix with any weight/correlation type |
+| `compute_four_deltas()` | Compute all 4 delta types for specific factor genes |
+| `compute_signed_delta_I()` | Compute delta I for one factor against all genes |
+| `compute_delta_I_matrix()` | Legacy interface for full delta I matrix |
 
-### Preprocessing
+### Curve Analysis
 
 | Function | Description |
 |----------|-------------|
-| `vst_transform()` | Apply VST normalization using sctransform |
-| `run_pipeline()` | Complete pipeline: load, preprocess, compute |
+| `get_moran_curve()` | Get full I(r) curve for a gene pair |
+| `plot_moran_curve()` | Visualize I(r) curve with smoothing |
 
-### Moran's I Computation
+### Pairwise Moran's I
 
 | Function | Description |
 |----------|-------------|
 | `pairwise_moran()` | Compute pairwise Moran's I between all genes |
 | `moran_I()` | Compute Moran's I for a single gene pair |
 | `create_weight_matrix()` | Create spatial weight matrix |
+
+### Data Loading & Preprocessing
+
+| Function | Description |
+|----------|-------------|
+| `load_visium_data()` | Load Visium data from Space Ranger output |
+| `filter_in_tissue()` | Filter to in-tissue spots only |
+| `get_spot_coords()` | Extract spot coordinates |
+| `vst_transform()` | Apply VST normalization |
+| `run_pipeline()` | Complete pipeline: load, preprocess, compute |
 | `parse_spot_names()` | Parse "ROWxCOL" format spot names |
 
 ### I/O
@@ -144,58 +253,42 @@ save_moran_result(result, "moran_output.tsv")
 | `save_moran_result()` | Save results in lower triangular format |
 | `load_moran_result()` | Load results from file |
 
-## Parameters
+## Method Details
 
-### pairwise_moran()
+### Weight Types
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `data` | Gene expression matrix (genes x spots) | required |
-| `spot_coords` | Spot coordinates (row, col) | required |
-| `max_radius` | Maximum grid radius for spatial weights | 5 |
-| `platform` | Platform type: "visium" or "old" | "visium" |
-| `same_spot` | Include same-spot weights | TRUE |
-| `mode` | "paired", "first", or "single" | "paired" |
-| `verbose` | Print progress messages | TRUE |
+- **Ring weights**: Neighbors within distance band [r_inner, r_outer). Captures distance-SPECIFIC spatial structure at each radius.
+- **Circular weights**: ALL neighbors within cumulative disk [0, r_outer). Provides distance-CUMULATIVE spatial structure.
 
-### vst_transform()
+### Correlation Types
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `counts` | Raw count matrix (genes x spots) | required |
-| `min_cells` | Minimum cells expressing a gene | 5 |
-| `n_genes` | Genes for model fitting | 2000 |
-| `verbose` | Print progress messages | TRUE |
+- **Moran's I**: Bivariate spatial autocorrelation. `I = z_f' * W * z_g / n`
+- **I_ND**: Directional cosine similarity. `I_ND = dot(z_f, W*z_g) / (||z_f|| * ||W*z_g||)`
 
-## Input/Output Formats
+### Delta I Computation
 
-### Input: Expression Matrix
+1. Compute I(r) at each distance radius
+2. Smooth curve with Savitzky-Golay filter (removes noise, preserves trend)
+3. Compute: `delta_I_signed = sign * (I_max - I_min)`
+   - sign = +1 if I_short > I_long (decay pattern = RESPONDER)
+   - sign = -1 if I_short < I_long (increase pattern = AVOIDANCE)
 
-- Tab-separated file with genes as rows, spots as columns
-- First row: spot names in "ROWxCOL" format (e.g., `5x10`, `5x12`)
-- First column: gene names
-- Values: normalized expression (VST recommended)
+### Interpretation
 
-```
-        5x10    5x12    6x11    6x13
-GeneA   0.5     -0.2    1.3     0.8
-GeneB   -0.1    0.4     -0.5    0.2
-```
-
-### Output: Moran's I Matrix
-
-- Lower triangular matrix (tab-separated)
-- Each row i contains values for gene i with genes 1 to i
-- Can be loaded back with `load_moran_result()`
+| Pattern | delta_I_signed | Interpretation |
+|---------|----------------|----------------|
+| Decay | > 0 | High correlation nearby, low far away -> TRUE RESPONDER |
+| Increase | < 0 | Low correlation nearby, high far away -> AVOIDANCE |
+| Flat | ~ 0 | Constant correlation -> CONSTITUTIVE EXPRESSION |
 
 ## Performance
 
-The package uses BLAS matrix operations to compute pairwise Moran's I efficiently:
+The package uses BLAS matrix operations for efficiency:
 
-- **Algorithm**: Reformulated as `Result = X @ W' @ X^T / sum(W')`
-- **Typical speedup**: ~2,000x compared to naive element-wise implementation
-- **Memory**: O(n_genes^2) for result matrix
-- **Example**: 19,729 genes x 3,813 spots completes in ~2 minutes (R) or ~15 seconds (C++ standalone)
+- **Algorithm**: Reformulated as `I = Z * W * Z^T / n` using matrix multiplication
+- **Optimization**: Weight matrices precomputed once, reused for all gene pairs
+- **Memory**: Chunked processing for large gene sets (>5000 genes)
+- **Typical performance**: 19,729 genes x 3,813 spots completes in ~2 minutes (R) or ~15 seconds (C++ standalone)
 
 ## Citation
 

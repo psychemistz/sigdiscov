@@ -85,3 +85,23 @@ cpp_compute_signatures_multi_factor <- function(expr_matrix, gene_names, factor_
     .Call(`_sigdiscov_cpp_compute_signatures_multi_factor`, expr_matrix, gene_names, factor_indices, coords, radii, mode, sender_percentile, smooth_window, smooth_poly, verbose)
 }
 
+cpp_create_circular_weight_matrix <- function(coords, r_outer, sender_idx, receiver_idx, mode = 0L, row_normalize = TRUE) {
+    .Call(`_sigdiscov_cpp_create_circular_weight_matrix`, coords, r_outer, sender_idx, receiver_idx, mode, row_normalize)
+}
+
+cpp_precompute_circular_weights <- function(coords, radii, mode = 0L, sender_idx, receiver_idx) {
+    .Call(`_sigdiscov_cpp_precompute_circular_weights`, coords, radii, mode, sender_idx, receiver_idx)
+}
+
+cpp_compute_four_deltas <- function(expr_matrix, gene_names, factor_idx, coords, radii, smooth_window = 5L, smooth_poly = 2L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_compute_four_deltas`, expr_matrix, gene_names, factor_idx, coords, radii, smooth_window, smooth_poly, verbose)
+}
+
+cpp_compute_delta_I_matrix_unified <- function(expr_matrix, coords, radii, weight_type = 0L, correlation_type = 0L, chunk_size = 1000L, smooth_window = 5L, smooth_poly = 2L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_compute_delta_I_matrix_unified`, expr_matrix, coords, radii, weight_type, correlation_type, chunk_size, smooth_window, smooth_poly, verbose)
+}
+
+cpp_compute_four_deltas_multi <- function(expr_matrix, gene_names, factor_names, coords, radii, smooth_window = 5L, smooth_poly = 2L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_compute_four_deltas_multi`, expr_matrix, gene_names, factor_names, coords, radii, smooth_window, smooth_poly, verbose)
+}
+

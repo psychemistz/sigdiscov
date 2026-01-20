@@ -2,6 +2,8 @@
 #include <RcppArmadillo.h>
 #include <cmath>
 #include <vector>
+#include <unordered_map>
+#include <string>
 
 using namespace Rcpp;
 using namespace arma;
@@ -1575,5 +1577,484 @@ Rcpp::List cpp_compute_signatures_multi_factor(
         );
     }
 
+    return results;
+}
+
+// =============================================================================
+// Create CIRCULAR (cumulative disk) weight matrix [0, r_outer)
+//
+// Unlike ring weights which use [r_inner, r_outer), circular weights include
+// ALL neighbors from distance 0 up to r_outer. This is useful for cumulative
+// spatial correlation analysis.
+//
+// @param coords Nx2 matrix of spot coordinates
+// @param r_outer Outer radius of disk (exclusive)
+// @param sender_idx Indices of sender spots (0-based, for directional mode)
+// @param receiver_idx Indices of receiver spots (0-based, for directional mode)
+// @param mode 0 = BIVARIATE, 1 = DIRECTIONAL
+// @param row_normalize Whether to row-normalize the weights (default: true)
+//
+// @return Sparse weight matrix
+// =============================================================================
+// [[Rcpp::export]]
+arma::sp_mat cpp_create_circular_weight_matrix(
+    const arma::mat& coords,
+    double r_outer,
+    const arma::uvec& sender_idx,
+    const arma::uvec& receiver_idx,
+    int mode = 0,
+    bool row_normalize = true
+) {
+    // Circular is just ring with r_inner = 0
+    return cpp_create_ring_weight_matrix(coords, 0.0, r_outer, sender_idx, receiver_idx, mode, row_normalize);
+}
+
+// =============================================================================
+// Precompute CIRCULAR weight matrices for all radii
+//
+// Creates cumulative disk weight matrices where each radius includes ALL
+// neighbors from 0 to that radius.
+//
+// @param coords Spot coordinates (Nx2 matrix)
+// @param radii Distance bin edges (cumulative radii)
+// @param mode 0 = BIVARIATE, 1 = DIRECTIONAL
+// @param sender_idx Sender spot indices (0-based, for directional mode)
+// @param receiver_idx Receiver spot indices (0-based, for directional mode)
+//
+// @return List of sparse weight matrices (one per radius)
+// =============================================================================
+// [[Rcpp::export]]
+Rcpp::List cpp_precompute_circular_weights(
+    const arma::mat& coords,
+    const arma::vec& radii,
+    int mode = 0,
+    const arma::uvec& sender_idx = arma::uvec(),
+    const arma::uvec& receiver_idx = arma::uvec()
+) {
+    int n_radii = radii.n_elem;
+    Rcpp::List W_list(n_radii);
+
+    // Determine indices for bivariate mode
+    arma::uvec s_idx, r_idx;
+    if (mode == MODE_BIVARIATE || sender_idx.n_elem == 0) {
+        int n = coords.n_rows;
+        s_idx = arma::regspace<arma::uvec>(0, n - 1);
+        r_idx = s_idx;
+    } else {
+        s_idx = sender_idx;
+        r_idx = receiver_idx;
+    }
+
+    // Precompute CIRCULAR weight matrix for each radius (0 to r_outer)
+    for (int r = 0; r < n_radii; r++) {
+        double r_outer = radii(r);
+
+        arma::sp_mat W = cpp_create_circular_weight_matrix(
+            coords, r_outer, s_idx, r_idx, mode, true
+        );
+
+        W_list[r] = W;
+    }
+
+    return W_list;
+}
+
+// =============================================================================
+// Compute all 4 delta types for one factor against all genes
+//
+// Computes:
+//   1. delta_i_ring_moran - Ring-based bivariate Moran's I
+//   2. delta_i_cir_moran  - Circular (cumulative disk) Moran's I
+//   3. delta_i_ring_ind   - Ring-based I_ND (directional, cosine similarity)
+//   4. delta_i_cir_ind    - Circular I_ND (directional, cosine similarity)
+//
+// @param expr_matrix Gene expression matrix (genes x spots), normalized
+// @param gene_names Character vector of gene names
+// @param factor_idx 0-based index of the factor gene in expr_matrix
+// @param coords Spot coordinates (Nx2 matrix)
+// @param radii Distance bin edges
+// @param smooth_window Savitzky-Golay window size
+// @param smooth_poly Savitzky-Golay polynomial order
+// @param verbose Print progress messages
+//
+// @return DataFrame with all 4 delta columns for each gene
+// =============================================================================
+// [[Rcpp::export]]
+Rcpp::DataFrame cpp_compute_four_deltas(
+    const arma::mat& expr_matrix,
+    const Rcpp::CharacterVector& gene_names,
+    int factor_idx,
+    const arma::mat& coords,
+    const arma::vec& radii,
+    int smooth_window = 5,
+    int smooth_poly = 2,
+    bool verbose = true
+) {
+    int n_genes = expr_matrix.n_rows;
+    int n_spots = expr_matrix.n_cols;
+    int n_radii = radii.n_elem;
+
+    if (verbose) {
+        Rcpp::Rcout << "Computing all 4 delta types for factor gene index " << factor_idx << std::endl;
+        Rcpp::Rcout << n_spots << " spots, " << n_genes << " genes, "
+                    << n_radii << " distance bins" << std::endl;
+    }
+
+    // Get factor expression
+    arma::vec factor_expr = expr_matrix.row(factor_idx).t();
+    arma::vec z_factor = standardize_vec(factor_expr);
+
+    // For bivariate mode, use all spots
+    arma::uvec all_idx = arma::regspace<arma::uvec>(0, n_spots - 1);
+
+    // Precompute RING weight matrices
+    if (verbose) Rcpp::Rcout << "Precomputing ring weight matrices..." << std::endl;
+    Rcpp::List W_ring_list = cpp_precompute_ring_weights(coords, radii, MODE_BIVARIATE, all_idx, all_idx);
+
+    // Precompute CIRCULAR weight matrices
+    if (verbose) Rcpp::Rcout << "Precomputing circular weight matrices..." << std::endl;
+    Rcpp::List W_cir_list = cpp_precompute_circular_weights(coords, radii, MODE_BIVARIATE, all_idx, all_idx);
+
+    // Result vectors for all 4 delta types
+    Rcpp::NumericVector out_ring_moran(n_genes);
+    Rcpp::NumericVector out_cir_moran(n_genes);
+    Rcpp::NumericVector out_ring_ind(n_genes);
+    Rcpp::NumericVector out_cir_ind(n_genes);
+
+    if (verbose) Rcpp::Rcout << "Computing deltas for " << n_genes << " genes..." << std::endl;
+
+    // Process each gene
+    for (int g = 0; g < n_genes; g++) {
+        // Progress update
+        if (verbose && ((g + 1) % 2000 == 0 || g == n_genes - 1)) {
+            Rcpp::Rcout << "  Processed " << (g + 1) << " / " << n_genes << " genes" << std::endl;
+        }
+
+        // Check for user interrupt
+        if (g % 100 == 0) {
+            Rcpp::checkUserInterrupt();
+        }
+
+        // Get gene expression and standardize
+        arma::vec gene_expr = expr_matrix.row(g).t();
+        arma::vec z_gene = standardize_vec(gene_expr);
+
+        // Compute I(r) curves for all 4 types
+        arma::vec I_ring_moran(n_radii);
+        arma::vec I_cir_moran(n_radii);
+        arma::vec I_ring_ind(n_radii);
+        arma::vec I_cir_ind(n_radii);
+
+        for (int r = 0; r < n_radii; r++) {
+            arma::sp_mat W_ring = Rcpp::as<arma::sp_mat>(W_ring_list[r]);
+            arma::sp_mat W_cir = Rcpp::as<arma::sp_mat>(W_cir_list[r]);
+
+            // Ring Moran's I (bivariate mode = 0)
+            I_ring_moran(r) = cpp_compute_spatial_correlation(z_factor, z_gene, W_ring, MODE_BIVARIATE);
+
+            // Circular Moran's I (bivariate mode = 0)
+            I_cir_moran(r) = cpp_compute_spatial_correlation(z_factor, z_gene, W_cir, MODE_BIVARIATE);
+
+            // Ring I_ND (directional mode = 1, but using all spots)
+            I_ring_ind(r) = cpp_compute_spatial_correlation(z_factor, z_gene, W_ring, MODE_DIRECTIONAL);
+
+            // Circular I_ND (directional mode = 1, but using all spots)
+            I_cir_ind(r) = cpp_compute_spatial_correlation(z_factor, z_gene, W_cir, MODE_DIRECTIONAL);
+        }
+
+        // Smooth all curves
+        arma::vec I_ring_moran_smooth = cpp_savgol_smooth(I_ring_moran, smooth_window, smooth_poly);
+        arma::vec I_cir_moran_smooth = cpp_savgol_smooth(I_cir_moran, smooth_window, smooth_poly);
+        arma::vec I_ring_ind_smooth = cpp_savgol_smooth(I_ring_ind, smooth_window, smooth_poly);
+        arma::vec I_cir_ind_smooth = cpp_savgol_smooth(I_cir_ind, smooth_window, smooth_poly);
+
+        // Compute signed delta I for all 4 types
+        SignatureResult sig_ring_moran = compute_signature_internal(I_ring_moran_smooth, radii);
+        SignatureResult sig_cir_moran = compute_signature_internal(I_cir_moran_smooth, radii);
+        SignatureResult sig_ring_ind = compute_signature_internal(I_ring_ind_smooth, radii);
+        SignatureResult sig_cir_ind = compute_signature_internal(I_cir_ind_smooth, radii);
+
+        // Store results
+        out_ring_moran[g] = sig_ring_moran.delta_I_signed;
+        out_cir_moran[g] = sig_cir_moran.delta_I_signed;
+        out_ring_ind[g] = sig_ring_ind.delta_I_signed;
+        out_cir_ind[g] = sig_cir_ind.delta_I_signed;
+    }
+
+    if (verbose) Rcpp::Rcout << "Done!" << std::endl;
+
+    // Create DataFrame
+    return Rcpp::DataFrame::create(
+        Rcpp::Named("gene") = gene_names,
+        Rcpp::Named("delta_i_ring_moran") = out_ring_moran,
+        Rcpp::Named("delta_i_cir_moran") = out_cir_moran,
+        Rcpp::Named("delta_i_ring_ind") = out_ring_ind,
+        Rcpp::Named("delta_i_cir_ind") = out_cir_ind,
+        Rcpp::Named("stringsAsFactors") = false
+    );
+}
+
+// =============================================================================
+// UNIFIED: Compute delta I matrix for any weight_type/correlation_type combo
+//
+// This is the main unified function that handles all 4 delta I types:
+//   - weight_type = "ring": neighbors in [r_inner, r_outer) distance band
+//   - weight_type = "circular": ALL neighbors in [0, r_outer) cumulative disk
+//   - correlation_type = "moran": bivariate Moran's I = z_f' * W * z_g / n
+//   - correlation_type = "ind": I_ND cosine = dot(z_f, W*z_g) / (||z_f|| * ||W*z_g||)
+//
+// The function precomputes weight matrices once and uses efficient matrix
+// multiplication for batch processing.
+//
+// @param expr_matrix Gene expression matrix (genes x spots), normalized
+// @param coords Spot coordinates (Nx2 matrix)
+// @param radii Distance bin edges
+// @param weight_type 0 = ring, 1 = circular
+// @param correlation_type 0 = moran (bivariate), 1 = ind (directional/cosine)
+// @param chunk_size Number of genes per chunk for memory efficiency
+// @param smooth_window Savitzky-Golay window size
+// @param smooth_poly Savitzky-Golay polynomial order
+// @param verbose Print progress messages
+//
+// @return List with delta_I_signed matrix (n_genes x n_genes) and metadata
+// =============================================================================
+// [[Rcpp::export]]
+Rcpp::List cpp_compute_delta_I_matrix_unified(
+    const arma::mat& expr_matrix,
+    const arma::mat& coords,
+    const arma::vec& radii,
+    int weight_type = 0,       // 0 = ring, 1 = circular
+    int correlation_type = 0,  // 0 = moran, 1 = ind
+    int chunk_size = 1000,
+    int smooth_window = 5,
+    int smooth_poly = 2,
+    bool verbose = true
+) {
+    int n_genes = expr_matrix.n_rows;
+    int n_spots = expr_matrix.n_cols;
+    int n_radii = radii.n_elem;
+
+    std::string wt_name = (weight_type == 0) ? "ring" : "circular";
+    std::string ct_name = (correlation_type == 0) ? "moran" : "ind";
+
+    if (verbose) {
+        Rcpp::Rcout << "Computing delta I matrix (unified)" << std::endl;
+        Rcpp::Rcout << "  Weight type: " << wt_name << std::endl;
+        Rcpp::Rcout << "  Correlation type: " << ct_name << std::endl;
+        Rcpp::Rcout << "  " << n_spots << " spots, " << n_genes << " genes, "
+                    << n_radii << " distance bins" << std::endl;
+        Rcpp::Rcout << "  Chunk size: " << chunk_size << " genes" << std::endl;
+    }
+
+    // Step 1: Standardize all genes
+    if (verbose) Rcpp::Rcout << "Step 1: Standardizing expression matrix..." << std::endl;
+    arma::mat Z(n_genes, n_spots);
+    arma::vec norms_z(n_genes);  // ||z_i|| for I_ND computation
+
+    for (int g = 0; g < n_genes; g++) {
+        arma::vec gene_expr = expr_matrix.row(g).t();
+        arma::vec z = standardize_vec(gene_expr);
+        Z.row(g) = z.t();
+        norms_z(g) = arma::norm(z, 2);
+    }
+
+    // Step 2: Precompute weight matrices for all radii
+    if (verbose) Rcpp::Rcout << "Step 2: Precomputing weight matrices..." << std::endl;
+
+    arma::uvec all_idx = arma::regspace<arma::uvec>(0, n_spots - 1);
+
+    std::vector<arma::mat> ZW_vec(n_radii);        // Z * W for each radius
+    std::vector<arma::vec> norms_Wz_vec(n_radii);  // ||W*z_j|| for I_ND at each radius
+
+    for (int r = 0; r < n_radii; r++) {
+        double r_inner, r_outer;
+
+        if (weight_type == 0) {
+            // Ring: [r_inner, r_outer)
+            r_inner = (r == 0) ? 0.0 : radii(r - 1);
+            r_outer = radii(r);
+        } else {
+            // Circular: [0, r_outer) - cumulative disk
+            r_inner = 0.0;
+            r_outer = radii(r);
+        }
+
+        // Create weight matrix
+        // Use mode=0 (bivariate) for matrix construction, the correlation_type
+        // affects how we interpret the result, not the weight matrix itself
+        arma::sp_mat W = cpp_create_ring_weight_matrix(
+            coords, r_inner, r_outer, all_idx, all_idx, 0, true
+        );
+
+        if (verbose) {
+            Rcpp::Rcout << "  " << wt_name << " " << (r+1) << ": ["
+                        << r_inner << ", " << r_outer << ") - "
+                        << W.n_nonzero << " non-zero weights" << std::endl;
+        }
+
+        // Compute ZW = Z * W (n_genes x n_spots) - spatial lag of all genes
+        ZW_vec[r] = Z * W;
+
+        // For I_ND, compute ||W*z_j|| for each gene
+        if (correlation_type == 1) {
+            arma::vec norms_Wz(n_genes);
+            for (int g = 0; g < n_genes; g++) {
+                norms_Wz(g) = arma::norm(ZW_vec[r].row(g), 2);
+            }
+            norms_Wz_vec[r] = norms_Wz;
+        }
+    }
+
+    // Step 3: Allocate result matrix
+    if (verbose) Rcpp::Rcout << "Step 3: Allocating result matrix..." << std::endl;
+    arma::mat delta_I_matrix(n_genes, n_genes);
+
+    // Step 4: Process in chunks of target genes
+    int n_chunks = (n_genes + chunk_size - 1) / chunk_size;
+    if (verbose) Rcpp::Rcout << "Step 4: Processing " << n_chunks << " chunks..." << std::endl;
+
+    for (int chunk = 0; chunk < n_chunks; chunk++) {
+        int start_idx = chunk * chunk_size;
+        int end_idx = std::min(start_idx + chunk_size, n_genes);
+        int chunk_genes = end_idx - start_idx;
+
+        if (verbose) {
+            Rcpp::Rcout << "  Chunk " << (chunk + 1) << "/" << n_chunks
+                        << " (genes " << start_idx << "-" << (end_idx - 1) << ")..." << std::endl;
+        }
+
+        // Extract Z_chunk for target genes
+        arma::mat Z_chunk = Z.rows(start_idx, end_idx - 1);  // chunk_genes x n_spots
+        arma::vec norms_z_chunk = norms_z.subvec(start_idx, end_idx - 1);
+
+        // Compute I for this chunk at all radii
+        arma::cube I_chunk(chunk_genes, n_genes, n_radii);
+
+        for (int r = 0; r < n_radii; r++) {
+            if (correlation_type == 0) {
+                // Moran's I: I[i,j] = z_i' * W * z_j / n
+                // Numerator: Z_chunk * ZW_vec[r]' = chunk_genes x n_genes
+                arma::mat I_r = Z_chunk * ZW_vec[r].t() / static_cast<double>(n_spots);
+                I_chunk.slice(r) = I_r;
+            } else {
+                // I_ND: I_ND[i,j] = dot(z_i, W*z_j) / (||z_i|| * ||W*z_j||)
+                arma::mat numerator = Z_chunk * ZW_vec[r].t();
+                arma::mat denominator = norms_z_chunk * norms_Wz_vec[r].t();
+
+                // I_ND = numerator / denominator (element-wise)
+                arma::mat I_r = numerator / (denominator + 1e-10);
+
+                // Set to NA where denominator is too small
+                for (int i = 0; i < chunk_genes; i++) {
+                    for (int j = 0; j < n_genes; j++) {
+                        if (denominator(i, j) < 1e-10) {
+                            I_r(i, j) = NA_REAL;
+                        }
+                    }
+                }
+
+                I_chunk.slice(r) = I_r;
+            }
+        }
+
+        // Smooth and compute delta I for this chunk
+        for (int i = 0; i < chunk_genes; i++) {
+            int global_i = start_idx + i;
+
+            for (int j = 0; j < n_genes; j++) {
+                arma::vec I_raw(n_radii);
+                for (int r = 0; r < n_radii; r++) {
+                    I_raw(r) = I_chunk(i, j, r);
+                }
+
+                arma::vec I_smooth = cpp_savgol_smooth(I_raw, smooth_window, smooth_poly);
+                SignatureResult sig = compute_signature_internal(I_smooth, radii);
+
+                delta_I_matrix(global_i, j) = sig.delta_I_signed;
+            }
+        }
+
+        Rcpp::checkUserInterrupt();
+    }
+
+    if (verbose) Rcpp::Rcout << "Done!" << std::endl;
+
+    return Rcpp::List::create(
+        Rcpp::Named("delta_I_signed") = delta_I_matrix,
+        Rcpp::Named("n_genes") = n_genes,
+        Rcpp::Named("n_spots") = n_spots,
+        Rcpp::Named("n_radii") = n_radii,
+        Rcpp::Named("radii") = radii,
+        Rcpp::Named("weight_type") = wt_name,
+        Rcpp::Named("correlation_type") = ct_name
+    );
+}
+
+// =============================================================================
+// Compute all 4 delta types for multiple factors
+//
+// Convenience wrapper that runs cpp_compute_four_deltas for multiple factors.
+//
+// @param expr_matrix Gene expression matrix (genes x spots), normalized
+// @param gene_names Character vector of gene names
+// @param factor_names Factor gene names to compute deltas for
+// @param coords Spot coordinates (Nx2 matrix)
+// @param radii Distance bin edges
+// @param smooth_window Savitzky-Golay window size
+// @param smooth_poly Savitzky-Golay polynomial order
+// @param verbose Print progress messages
+//
+// @return List of DataFrames, one per factor
+// =============================================================================
+// [[Rcpp::export]]
+Rcpp::List cpp_compute_four_deltas_multi(
+    const arma::mat& expr_matrix,
+    const Rcpp::CharacterVector& gene_names,
+    const Rcpp::CharacterVector& factor_names,
+    const arma::mat& coords,
+    const arma::vec& radii,
+    int smooth_window = 5,
+    int smooth_poly = 2,
+    bool verbose = true
+) {
+    int n_factors = factor_names.size();
+    Rcpp::List results(n_factors);
+
+    // Build gene name to index map
+    std::unordered_map<std::string, int> name_to_idx;
+    for (int i = 0; i < gene_names.size(); i++) {
+        name_to_idx[Rcpp::as<std::string>(gene_names[i])] = i;
+    }
+
+    for (int f = 0; f < n_factors; f++) {
+        std::string factor_name = Rcpp::as<std::string>(factor_names[f]);
+
+        auto it = name_to_idx.find(factor_name);
+        if (it == name_to_idx.end()) {
+            Rcpp::warning("Factor gene '" + factor_name + "' not found, skipping");
+            results[f] = R_NilValue;
+            continue;
+        }
+
+        int factor_idx = it->second;
+
+        if (verbose) {
+            Rcpp::Rcout << "\n=== Factor " << (f + 1) << " / " << n_factors
+                        << " (" << factor_name << ", index " << factor_idx << ") ===" << std::endl;
+        }
+
+        results[f] = cpp_compute_four_deltas(
+            expr_matrix,
+            gene_names,
+            factor_idx,
+            coords,
+            radii,
+            smooth_window,
+            smooth_poly,
+            verbose
+        );
+    }
+
+    results.names() = factor_names;
     return results;
 }

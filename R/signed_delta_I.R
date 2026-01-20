@@ -1,67 +1,41 @@
-#' Compute Signed Delta I Signatures for Spatial Transcriptomics
+#' @title Signed Delta I Signatures for Spatial Transcriptomics
+#' @description Functions for computing distance-dependent spatial correlation
+#' signatures (signed delta I) between genes in spatial transcriptomics data.
+#' @name signed_delta_I
+NULL
+
+
+#' Compute Signed Delta I for a Single Factor
 #'
 #' Computes distance-dependent spatial correlation between a factor gene and all
-#' other genes, then derives signed delta I signatures. This helps distinguish
-#' true responsive genes from constitutively expressed genes.
+#' other genes, then derives signed delta I signatures.
 #'
-#' @param expr_matrix A matrix of gene expression values (genes x spots). VST-normalized values are recommended.
-#' @param spot_coords Spot coordinates as a data frame with row/col columns, or a 2-column matrix in physical units.
+#' @param expr_matrix A matrix of gene expression values (genes x spots). VST-normalized recommended.
+#' @param spot_coords Spot coordinates as a data frame with row/col columns, or a 2-column matrix.
 #' @param factor_gene Name or row index of the factor gene.
-#' @param radii Numeric vector of distance bin edges in same units as coordinates. Default: seq(100, 600, 100).
-#' @param mode Computation mode: "bivariate" (symmetric) or "directional" (I_ND with sender/receiver). Default: "bivariate".
+#' @param radii Numeric vector of distance bin edges. Default: seq(100, 600, 100).
+#' @param mode Computation mode: "bivariate" (Moran's I) or "directional" (I_ND). Default: "bivariate".
 #' @param sender_percentile For directional mode: percentile threshold for senders. Default: 75.
 #' @param smooth_window Savitzky-Golay smoothing window size (must be odd). Default: 5.
 #' @param smooth_poly Savitzky-Golay polynomial order. Default: 2.
-#' @param coord_scale Scale factor for coordinates. For Visium grid, use ~100 for micrometers. Default: 1.
+#' @param coord_scale Scale factor for coordinates. Default: 1.
 #' @param verbose Print progress messages. Default: TRUE.
 #'
 #' @return A data frame with columns: gene, delta_I, delta_I_signed, sign, I_short, I_long, I_max, I_min, auc, peak_radius_idx.
 #'
 #' @details
-#' The function computes bivariate Moran's I (or directional I_ND) at multiple
-#' distance bins, creating an I(r) curve. This curve is smoothed using a
-#' Savitzky-Golay filter, then signed delta I is computed based on the trend.
-#'
-#' Interpretation: delta_I_signed > 0 indicates decay pattern (TRUE RESPONDER),
-#' delta_I_signed < 0 indicates increase pattern (AVOIDANCE), and values near
-#' zero indicate flat pattern (CONSTITUTIVE expression).
-#'
-#' Mode "bivariate" uses all spots symmetrically for general spatial pattern
-#' discovery. Mode "directional" uses explicit sender-receiver directionality
-#' (I_ND cosine similarity) for ligand-receptor signaling analysis.
+#' Interpretation:
+#' \itemize{
+#'   \item delta_I_signed > 0: Decay pattern (TRUE RESPONDER)
+#'   \item delta_I_signed < 0: Increase pattern (AVOIDANCE)
+#'   \item delta_I_signed ~ 0: Flat pattern (CONSTITUTIVE)
+#' }
 #'
 #' @examples
 #' \dontrun{
-#' # Load Visium data
-#' visium <- load_visium_data("path/to/spaceranger_output")
-#' visium <- filter_in_tissue(visium)
-#' expr_vst <- vst_transform(visium$counts)
-#' coords <- get_spot_coords(visium)
-#'
-#' # Bivariate mode (symmetric)
-#' sig <- compute_signed_delta_I(
-#'   expr_matrix = expr_vst,
-#'   spot_coords = coords,
-#'   factor_gene = "IL1B",
-#'   mode = "bivariate",
-#'   coord_scale = 100  # Convert grid to micrometers
-#' )
-#'
-#' # View top responders (decay pattern)
+#' sig <- compute_signed_delta_I(expr_vst, coords, factor_gene = "IL1B")
 #' head(sig[order(-sig$delta_I_signed), ])
-#'
-#' # Directional mode (sender -> receiver)
-#' sig_dir <- compute_signed_delta_I(
-#'   expr_matrix = expr_vst,
-#'   spot_coords = coords,
-#'   factor_gene = "IL1B",
-#'   mode = "directional",
-#'   sender_percentile = 75
-#' )
 #' }
-#'
-#' @seealso \code{\link{get_moran_curve}} for visualizing individual gene curves,
-#'   \code{\link{pairwise_moran}} for standard pairwise Moran's I.
 #'
 #' @export
 compute_signed_delta_I <- function(expr_matrix,
@@ -78,7 +52,6 @@ compute_signed_delta_I <- function(expr_matrix,
   mode <- match.arg(mode)
   mode_int <- if (mode == "bivariate") 0L else 1L
 
-  # Input validation
   if (!is.matrix(expr_matrix)) {
     expr_matrix <- as.matrix(expr_matrix)
   }
@@ -89,59 +62,34 @@ compute_signed_delta_I <- function(expr_matrix,
     if (length(factor_idx) == 0) {
       stop("Factor gene '", factor_gene, "' not found in expression matrix")
     }
-    if (length(factor_idx) > 1) {
-      warning("Multiple matches for '", factor_gene, "', using first match")
-      factor_idx <- factor_idx[1]
-    }
-    factor_idx <- factor_idx - 1L  # Convert to 0-based for C++
+    factor_idx <- factor_idx[1] - 1L
   } else {
     factor_idx <- as.integer(factor_gene) - 1L
-    if (factor_idx < 0 || factor_idx >= nrow(expr_matrix)) {
-      stop("factor_gene index out of range")
-    }
   }
 
   # Prepare coordinates
-  if (is.data.frame(spot_coords)) {
-    if ("row" %in% names(spot_coords) && "col" %in% names(spot_coords)) {
-      coords <- as.matrix(spot_coords[, c("row", "col")])
-    } else {
-      coords <- as.matrix(spot_coords[, 1:2])
-    }
-  } else if (is.matrix(spot_coords)) {
-    coords <- spot_coords[, 1:2, drop = FALSE]
-  } else {
-    stop("spot_coords must be a data frame or matrix")
-  }
-  coords <- coords * coord_scale
+  coords <- .prepare_coords(spot_coords, coord_scale)
 
-  # Validate dimensions
   if (ncol(expr_matrix) != nrow(coords)) {
-    stop("Number of columns in expr_matrix (", ncol(expr_matrix),
-         ") must match number of spots in spot_coords (", nrow(coords), ")")
+    stop("Number of spots in expr_matrix and spot_coords must match")
   }
 
-  # Gene names
   gene_names <- rownames(expr_matrix)
   if (is.null(gene_names)) {
     gene_names <- paste0("Gene_", seq_len(nrow(expr_matrix)))
   }
 
-  # Ensure window is odd
   if (smooth_window %% 2 == 0) {
     smooth_window <- smooth_window + 1L
-    if (verbose) message("Adjusted smooth_window to ", smooth_window, " (must be odd)")
   }
 
   if (verbose) {
     message("Computing signed delta I signatures...")
     message("  Mode: ", mode)
-    message("  Factor gene: ", if (is.character(factor_gene)) factor_gene else gene_names[factor_idx + 1])
+    message("  Factor: ", if (is.character(factor_gene)) factor_gene else gene_names[factor_idx + 1])
     message("  ", nrow(expr_matrix), " genes x ", ncol(expr_matrix), " spots")
-    message("  ", length(radii), " distance bins: ", paste(radii, collapse = ", "))
   }
 
-  # Call C++ implementation
   result <- cpp_compute_all_signatures(
     expr_matrix = expr_matrix,
     gene_names = gene_names,
@@ -155,11 +103,9 @@ compute_signed_delta_I <- function(expr_matrix,
     verbose = verbose
   )
 
-  # Add metadata as attributes
   attr(result, "mode") <- mode
   attr(result, "factor_gene") <- if (is.character(factor_gene)) factor_gene else gene_names[factor_idx + 1]
   attr(result, "radii") <- radii
-  attr(result, "sender_percentile") <- sender_percentile
 
   return(result)
 }
@@ -167,47 +113,26 @@ compute_signed_delta_I <- function(expr_matrix,
 
 #' Get Moran's I Curve for a Gene Pair
 #'
-#' Computes the full I(r) curve for a single factor-gene pair, useful for
-#' visualization and detailed analysis.
+#' Computes the full I(r) curve for a single factor-gene pair.
 #'
 #' @param expr_matrix A matrix of gene expression values (genes x spots).
 #' @param spot_coords Spot coordinates as a data frame or matrix.
 #' @param factor_gene Name or row index of the factor gene.
 #' @param target_gene Name or row index of the target gene.
-#' @param radii Numeric vector of distance bin edges. Default: \code{seq(100, 600, 100)}.
+#' @param radii Numeric vector of distance bin edges. Default: seq(100, 600, 100).
 #' @param mode Computation mode: "bivariate" or "directional". Default: "bivariate".
-#' @param sender_percentile For directional mode: percentile threshold for senders. Default: 75.
-#' @param smooth_window Savitzky-Golay smoothing window size. Default: 5.
-#' @param smooth_poly Savitzky-Golay polynomial order. Default: 2.
+#' @param sender_percentile For directional mode: percentile threshold. Default: 75.
+#' @param smooth_window Savitzky-Golay window size. Default: 5.
+#' @param smooth_poly Polynomial order. Default: 2.
 #' @param coord_scale Scale factor for coordinates. Default: 1.
 #'
-#' @return A list with radii, I_raw, I_smooth, delta_I, delta_I_signed, sign, I_max, I_min, I_short, I_long, auc, peak_idx.
+#' @return A list with radii, I_raw, I_smooth, delta_I_signed, and other metrics.
 #'
 #' @examples
 #' \dontrun{
-#' # Get curve for a specific gene pair
-#' curve <- get_moran_curve(
-#'   expr_matrix = expr_vst,
-#'   spot_coords = coords,
-#'   factor_gene = "IL1B",
-#'   target_gene = "COL1A1",
-#'   mode = "bivariate",
-#'   coord_scale = 100
-#' )
-#'
-#' # Plot the curve
-#' plot(curve$radii, curve$I_raw, type = "p", pch = 19,
-#'      xlab = "Distance (um)", ylab = "Moran's I",
-#'      main = paste(curve$factor_gene, "->", curve$target_gene))
-#' lines(curve$radii, curve$I_smooth, col = "blue", lwd = 2)
-#' abline(h = 0, lty = 2, col = "gray")
-#' legend("topright",
-#'        legend = paste("delta_I_signed =", round(curve$delta_I_signed, 4)),
-#'        bty = "n")
+#' curve <- get_moran_curve(expr_vst, coords, "IL1B", "COL1A1")
+#' plot(curve$radii, curve$I_smooth, type = "l")
 #' }
-#'
-#' @seealso \code{\link{compute_signed_delta_I}} for batch processing,
-#'   \code{\link{plot_moran_curve}} for visualization.
 #'
 #' @export
 get_moran_curve <- function(expr_matrix,
@@ -224,73 +149,31 @@ get_moran_curve <- function(expr_matrix,
   mode <- match.arg(mode)
   mode_int <- if (mode == "bivariate") 0L else 1L
 
-  # Input validation
   if (!is.matrix(expr_matrix)) {
     expr_matrix <- as.matrix(expr_matrix)
   }
 
-  # Gene names
   gene_names <- rownames(expr_matrix)
   if (is.null(gene_names)) {
     gene_names <- paste0("Gene_", seq_len(nrow(expr_matrix)))
   }
 
-  # Get factor index
-  if (is.character(factor_gene)) {
-    factor_idx <- which(gene_names == factor_gene)
-    if (length(factor_idx) == 0) {
-      stop("Factor gene '", factor_gene, "' not found in expression matrix")
-    }
-    factor_idx <- factor_idx[1]
-    factor_name <- factor_gene
-  } else {
-    factor_idx <- as.integer(factor_gene)
-    if (factor_idx < 1 || factor_idx > nrow(expr_matrix)) {
-      stop("factor_gene index out of range")
-    }
-    factor_name <- gene_names[factor_idx]
-  }
+  # Get indices
+  factor_idx <- .get_gene_index(factor_gene, gene_names)
+  target_idx <- .get_gene_index(target_gene, gene_names)
 
-  # Get target index
-  if (is.character(target_gene)) {
-    target_idx <- which(gene_names == target_gene)
-    if (length(target_idx) == 0) {
-      stop("Target gene '", target_gene, "' not found in expression matrix")
-    }
-    target_idx <- target_idx[1]
-    target_name <- target_gene
-  } else {
-    target_idx <- as.integer(target_gene)
-    if (target_idx < 1 || target_idx > nrow(expr_matrix)) {
-      stop("target_gene index out of range")
-    }
-    target_name <- gene_names[target_idx]
-  }
+  factor_name <- gene_names[factor_idx]
+  target_name <- gene_names[target_idx]
 
-  # Prepare coordinates
-  if (is.data.frame(spot_coords)) {
-    if ("row" %in% names(spot_coords) && "col" %in% names(spot_coords)) {
-      coords <- as.matrix(spot_coords[, c("row", "col")])
-    } else {
-      coords <- as.matrix(spot_coords[, 1:2])
-    }
-  } else if (is.matrix(spot_coords)) {
-    coords <- spot_coords[, 1:2, drop = FALSE]
-  } else {
-    stop("spot_coords must be a data frame or matrix")
-  }
-  coords <- coords * coord_scale
+  coords <- .prepare_coords(spot_coords, coord_scale)
 
-  # Ensure window is odd
   if (smooth_window %% 2 == 0) {
     smooth_window <- smooth_window + 1L
   }
 
-  # Get expression vectors
   factor_expr <- as.numeric(expr_matrix[factor_idx, ])
   gene_expr <- as.numeric(expr_matrix[target_idx, ])
 
-  # Call C++ implementation
   result <- cpp_compute_single_signature(
     factor_expr = factor_expr,
     gene_expr = gene_expr,
@@ -302,7 +185,6 @@ get_moran_curve <- function(expr_matrix,
     smooth_poly = as.integer(smooth_poly)
   )
 
-  # Add gene names and mode
   result$factor_gene <- factor_name
   result$target_gene <- target_name
   result$mode <- mode
@@ -318,16 +200,10 @@ get_moran_curve <- function(expr_matrix,
 #' @param curve_result Result from \code{\link{get_moran_curve}}.
 #' @param show_raw Show raw curve points. Default: TRUE.
 #' @param show_smooth Show smoothed curve line. Default: TRUE.
-#' @param title Custom plot title. If NULL, auto-generated from gene names.
-#' @param ... Additional arguments passed to \code{plot()}.
+#' @param title Custom plot title. If NULL, auto-generated.
+#' @param ... Additional arguments passed to plot().
 #'
 #' @return Invisibly returns the curve_result.
-#'
-#' @examples
-#' \dontrun{
-#' curve <- get_moran_curve(expr_vst, coords, "IL1B", "COL1A1")
-#' plot_moran_curve(curve)
-#' }
 #'
 #' @export
 plot_moran_curve <- function(curve_result,
@@ -340,7 +216,6 @@ plot_moran_curve <- function(curve_result,
   I_raw <- curve_result$I_raw
   I_smooth <- curve_result$I_smooth
 
-  # Auto-generate title
   if (is.null(title)) {
     sign_text <- if (curve_result$sign > 0) "decay" else "increase"
     title <- sprintf("%s -> %s\ndelta_I_signed = %.4f (%s)",
@@ -350,163 +225,240 @@ plot_moran_curve <- function(curve_result,
                      sign_text)
   }
 
-  # Determine y-axis limits
   all_vals <- c(I_raw, I_smooth)
   all_vals <- all_vals[is.finite(all_vals)]
-  if (length(all_vals) == 0) {
-    ylim <- c(-1, 1)
-  } else {
-    ylim <- range(all_vals) * 1.1
-    if (ylim[1] > 0) ylim[1] <- 0
-    if (ylim[2] < 0) ylim[2] <- 0
-  }
+  ylim <- if (length(all_vals) == 0) c(-1, 1) else range(all_vals) * 1.1
+  if (ylim[1] > 0) ylim[1] <- 0
+  if (ylim[2] < 0) ylim[2] <- 0
 
-  # Initialize plot
   plot(radii, I_raw, type = "n",
-       xlab = expression(paste("Distance (", mu, "m)")),
-       ylab = "Spatial Correlation (I)",
-       main = title,
-       ylim = ylim,
-       ...)
+       xlab = "Distance", ylab = "Spatial Correlation (I)",
+       main = title, ylim = ylim, ...)
 
-  # Add horizontal line at 0
+  abline(h = 0, lty = 2, col = "gray50")
 
-abline(h = 0, lty = 2, col = "gray50")
-
-  # Add reference lines for I_max and I_min
-  abline(h = curve_result$I_max, lty = 3, col = "red", lwd = 0.5)
-  abline(h = curve_result$I_min, lty = 3, col = "red", lwd = 0.5)
-
-  # Plot raw points
   if (show_raw) {
     points(radii, I_raw, pch = 19, col = "gray40", cex = 1.2)
   }
 
-  # Plot smoothed line
   if (show_smooth) {
-    # Handle NAs for smooth line
     valid_idx <- which(is.finite(I_smooth))
     if (length(valid_idx) > 1) {
       lines(radii[valid_idx], I_smooth[valid_idx], col = "blue", lwd = 2)
     }
   }
 
-  # Add legend
-  legend_items <- c()
-  legend_cols <- c()
-  legend_pch <- c()
-  legend_lty <- c()
-
-  if (show_raw) {
-    legend_items <- c(legend_items, "Raw I(r)")
-    legend_cols <- c(legend_cols, "gray40")
-    legend_pch <- c(legend_pch, 19)
-    legend_lty <- c(legend_lty, NA)
-  }
-
-  if (show_smooth) {
-    legend_items <- c(legend_items, "Smoothed")
-    legend_cols <- c(legend_cols, "blue")
-    legend_pch <- c(legend_pch, NA)
-    legend_lty <- c(legend_lty, 1)
-  }
-
-  if (length(legend_items) > 0) {
-    legend("topright",
-           legend = legend_items,
-           col = legend_cols,
-           pch = legend_pch,
-           lty = legend_lty,
-           lwd = 2,
-           bty = "n")
-  }
-
   invisible(curve_result)
 }
 
 
-#' Compute Full Delta I Matrix (Optimized for All Pairs)
+#' Compute Delta I Matrix
 #'
-#' Computes signed delta I for ALL gene pairs at once using an optimized
-#' matrix multiplication approach. This is much faster than computing
-#' delta I for each factor separately when you need the full matrix.
+#' Compute delta I matrix for ALL gene pairs. Supports 4 methods:
+#' \itemize{
+#'   \item ring + moran: Ring-based Moran's I (default)
+#'   \item ring + ind: Ring-based I_ND
+#'   \item circular + moran: Circular Moran's I
+#'   \item circular + ind: Circular I_ND
+#' }
 #'
 #' @param expr_matrix A matrix of gene expression values (genes x spots). VST-normalized recommended.
 #' @param spot_coords Spot coordinates as a data frame with row/col columns, or a 2-column matrix.
-#' @param radii Numeric vector of distance bin edges. Default: seq(100, 600, 100).
-#' @param mode Computation mode: "bivariate" (symmetric) or "directional" (I_ND). Default: "bivariate".
-#' @param sender_percentile For directional mode: percentile threshold for senders. Default: 75.
-#' @param chunk_size Number of genes per chunk for memory efficiency. Default: 1000. NULL disables chunking.
+#' @param radii Numeric vector of distance bin edges. Default: seq(150, 650, 100).
+#' @param weight_type Neighbor definition: "ring" or "circular". Default: "ring".
+#' @param correlation_type Correlation measure: "moran" or "ind". Default: "moran".
+#' @param chunk_size Number of genes per chunk for memory efficiency. Default: 1000.
 #' @param smooth_window Savitzky-Golay smoothing window size (must be odd). Default: 5.
 #' @param smooth_poly Savitzky-Golay polynomial order. Default: 2.
 #' @param coord_scale Scale factor for coordinates. Default: 1.
 #' @param verbose Print progress messages. Default: TRUE.
 #'
-#' @return A list with delta_I_signed (n_genes x n_genes matrix), n_genes, n_spots, n_radii, radii.
-#'
-#' @details
-#' This function is optimized for computing delta I for ALL gene pairs at once.
-#' In bivariate mode, the weight matrix W(r) is the SAME for all gene pairs at
-#' a given radius. The optimization:
-#' \enumerate{
-#'   \item Precompute weight matrices once for all radii (6 matrices)
-#'   \item Standardize all gene expressions once (Z matrix)
-#'   \item For each radius, compute full I matrix: I(r) = Z * W(r) * Z^T / n
-#'   \item Compute delta I for all pairs from the I(r) cube
+#' @return A list with:
+#' \itemize{
+#'   \item delta_I_signed: n_genes x n_genes matrix
+#'   \item n_genes, n_spots, n_radii: dimensions
+#'   \item weight_type, correlation_type: method parameters
 #' }
 #'
-#' This reduces weight matrix creation from O(n_factors * n_radii) to O(n_radii),
-#' providing significant speedup when computing the full matrix.
+#' @details
+#' \strong{Weight Types:}
+#' \itemize{
+#'   \item Ring: Neighbors in distance band [r_inner, r_outer)
+#'   \item Circular: All neighbors in cumulative disk [0, r_outer)
+#' }
 #'
-#' For large gene sets (>5000), the function automatically uses a memory-efficient
-#' chunked algorithm to avoid running out of memory.
-#'
-#' The matrix is organized as: rows = target genes, columns = factor genes.
-#' So \code{delta_I_signed[i, j]} gives the signed delta I for gene i when
-#' gene j is used as the factor.
+#' \strong{Correlation Types:}
+#' \itemize{
+#'   \item Moran's I: I = z_f' * W * z_g / n
+#'   \item I_ND: I_ND = dot(z_f, W*z_g) / (||z_f|| * ||W*z_g||)
+#' }
 #'
 #' @examples
 #' \dontrun{
-#' # Compute full delta I matrix for 500 genes
-#' result <- compute_delta_I_matrix(
-#'   expr_matrix = expr_vst[1:500, ],
-#'   spot_coords = coords,
-#'   coord_scale = 100,
-#'   verbose = TRUE
-#' )
+#' # Ring-based Moran's I (default)
+#' result <- compute_delta_I_matrix(expr_vst, coords)
 #'
-#' # Access the matrix
-#' delta_I <- result$delta_I_signed
-#' dim(delta_I)  # 500 x 500
-#'
-#' # Find top responders for gene 1 as factor
-#' responders <- sort(delta_I[, 1], decreasing = TRUE)
-#' head(responders)
+#' # Circular I_ND
+#' result <- compute_delta_I_matrix(expr_vst, coords,
+#'                                   weight_type = "circular",
+#'                                   correlation_type = "ind")
 #' }
-#'
-#' @seealso \code{\link{compute_signed_delta_I}} for single-factor computation,
-#'   \code{\link{get_moran_curve}} for individual pair analysis.
 #'
 #' @export
 compute_delta_I_matrix <- function(expr_matrix,
                                     spot_coords,
-                                    radii = seq(100, 600, 100),
-                                    mode = c("bivariate", "directional"),
-                                    sender_percentile = 75,
+                                    radii = seq(150, 650, 100),
+                                    weight_type = c("ring", "circular"),
+                                    correlation_type = c("moran", "ind"),
                                     chunk_size = 1000,
                                     smooth_window = 5,
                                     smooth_poly = 2,
                                     coord_scale = 1,
                                     verbose = TRUE) {
 
-  mode <- match.arg(mode)
+  weight_type <- match.arg(weight_type)
+  correlation_type <- match.arg(correlation_type)
 
-  # Input validation
+  wt_int <- if (weight_type == "ring") 0L else 1L
+  ct_int <- if (correlation_type == "moran") 0L else 1L
+
   if (!is.matrix(expr_matrix)) {
     expr_matrix <- as.matrix(expr_matrix)
   }
 
-  # Prepare coordinates
+  coords <- .prepare_coords(spot_coords, coord_scale)
+
+  if (ncol(expr_matrix) != nrow(coords)) {
+    stop("Number of spots in expr_matrix and spot_coords must match")
+  }
+
+  if (smooth_window %% 2 == 0) {
+    smooth_window <- smooth_window + 1L
+    if (verbose) message("Adjusted smooth_window to ", smooth_window)
+  }
+
+  if (verbose) {
+    message("Computing delta I matrix...")
+    message("  Weight type: ", weight_type)
+    message("  Correlation type: ", correlation_type)
+    message("  ", nrow(expr_matrix), " genes x ", ncol(expr_matrix), " spots")
+    message("  ", length(radii), " distance bins")
+  }
+
+  result <- cpp_compute_delta_I_matrix_unified(
+    expr_matrix = expr_matrix,
+    coords = coords,
+    radii = as.numeric(radii),
+    weight_type = wt_int,
+    correlation_type = ct_int,
+    chunk_size = as.integer(chunk_size),
+    smooth_window = as.integer(smooth_window),
+    smooth_poly = as.integer(smooth_poly),
+    verbose = verbose
+  )
+
+  gene_names <- rownames(expr_matrix)
+  if (!is.null(gene_names)) {
+    rownames(result$delta_I_signed) <- gene_names
+    colnames(result$delta_I_signed) <- gene_names
+  }
+
+  return(result)
+}
+
+
+#' Compute All 4 Delta Types for Factor Genes
+#'
+#' Computes all 4 delta types (ring/circular x moran/ind) for specified factor genes.
+#'
+#' @param expr_matrix A matrix of gene expression values (genes x spots).
+#' @param spot_coords Spot coordinates as a data frame or matrix.
+#' @param factor_genes Character vector of factor gene names.
+#' @param radii Numeric vector of distance bin edges. Default: seq(150, 650, 100).
+#' @param smooth_window Savitzky-Golay window size. Default: 5.
+#' @param smooth_poly Polynomial order. Default: 2.
+#' @param coord_scale Scale factor for coordinates. Default: 1.
+#' @param verbose Print progress messages. Default: TRUE.
+#'
+#' @return If single factor: DataFrame with columns gene, delta_i_ring_moran, delta_i_cir_moran,
+#'   delta_i_ring_ind, delta_i_cir_ind. If multiple factors: named list of DataFrames.
+#'
+#' @examples
+#' \dontrun{
+#' results <- compute_four_deltas(expr_vst, coords, c("IFNG", "TGFB1"))
+#' cor(results$IFNG[, 2:5])
+#' }
+#'
+#' @export
+compute_four_deltas <- function(expr_matrix,
+                                 spot_coords,
+                                 factor_genes,
+                                 radii = seq(150, 650, 100),
+                                 smooth_window = 5,
+                                 smooth_poly = 2,
+                                 coord_scale = 1,
+                                 verbose = TRUE) {
+
+  if (!is.matrix(expr_matrix)) {
+    expr_matrix <- as.matrix(expr_matrix)
+  }
+
+  coords <- .prepare_coords(spot_coords, coord_scale)
+
+  if (ncol(expr_matrix) != nrow(coords)) {
+    stop("Number of spots in expr_matrix and spot_coords must match")
+  }
+
+  gene_names <- rownames(expr_matrix)
+  if (is.null(gene_names)) {
+    gene_names <- paste0("Gene_", seq_len(nrow(expr_matrix)))
+  }
+
+  missing_genes <- setdiff(factor_genes, gene_names)
+  if (length(missing_genes) > 0) {
+    warning("Factor genes not found: ", paste(missing_genes, collapse = ", "))
+    factor_genes <- intersect(factor_genes, gene_names)
+  }
+
+  if (length(factor_genes) == 0) {
+    stop("No valid factor genes found")
+  }
+
+  if (smooth_window %% 2 == 0) {
+    smooth_window <- smooth_window + 1L
+  }
+
+  if (verbose) {
+    message("Computing all 4 delta types...")
+    message("  Factors: ", paste(factor_genes, collapse = ", "))
+    message("  ", nrow(expr_matrix), " genes x ", ncol(expr_matrix), " spots")
+  }
+
+  result <- cpp_compute_four_deltas_multi(
+    expr_matrix = expr_matrix,
+    gene_names = gene_names,
+    factor_names = factor_genes,
+    coords = coords,
+    radii = as.numeric(radii),
+    smooth_window = as.integer(smooth_window),
+    smooth_poly = as.integer(smooth_poly),
+    verbose = verbose
+  )
+
+  if (length(factor_genes) == 1) {
+    return(result[[1]])
+  }
+
+  return(result)
+}
+
+
+# =============================================================================
+# Internal helper functions
+# =============================================================================
+
+#' @keywords internal
+.prepare_coords <- function(spot_coords, coord_scale = 1) {
   if (is.data.frame(spot_coords)) {
     if ("row" %in% names(spot_coords) && "col" %in% names(spot_coords)) {
       coords <- as.matrix(spot_coords[, c("row", "col")])
@@ -518,97 +470,18 @@ compute_delta_I_matrix <- function(expr_matrix,
   } else {
     stop("spot_coords must be a data frame or matrix")
   }
-  coords <- coords * coord_scale
+  coords * coord_scale
+}
 
-  # Validate dimensions
-  if (ncol(expr_matrix) != nrow(coords)) {
-    stop("Number of columns in expr_matrix (", ncol(expr_matrix),
-         ") must match number of spots in spot_coords (", nrow(coords), ")")
-  }
-
-  # Ensure window is odd
-  if (smooth_window %% 2 == 0) {
-    smooth_window <- smooth_window + 1L
-    if (verbose) message("Adjusted smooth_window to ", smooth_window, " (must be odd)")
-  }
-
-  n_genes <- nrow(expr_matrix)
-
-  if (verbose) {
-    message("Computing full delta I matrix...")
-    message("  Mode: ", mode)
-    message("  ", n_genes, " genes x ", ncol(expr_matrix), " spots")
-    message("  ", length(radii), " distance bins: ", paste(radii, collapse = ", "))
-  }
-
-  # For directional mode, use dedicated function
-  if (mode == "directional") {
-    # If sender_percentile is 0 or NULL, use fast mode (no filtering)
-    use_fast_ind <- is.null(sender_percentile) || sender_percentile == 0
-
-    if (use_fast_ind) {
-      if (verbose) message("  Using fast I_ND mode (no expression filtering)")
-      result <- cpp_compute_delta_I_matrix_IND_fast(
-        expr_matrix = expr_matrix,
-        coords = coords,
-        radii = as.numeric(radii),
-        chunk_size = as.integer(if (is.null(chunk_size)) 1000 else chunk_size),
-        smooth_window = as.integer(smooth_window),
-        smooth_poly = as.integer(smooth_poly),
-        verbose = verbose
-      )
-    } else {
-      if (verbose) message("  Sender percentile: ", sender_percentile)
-      result <- cpp_compute_delta_I_matrix_directional(
-        expr_matrix = expr_matrix,
-        coords = coords,
-        radii = as.numeric(radii),
-        sender_percentile = as.numeric(sender_percentile),
-        smooth_window = as.integer(smooth_window),
-        smooth_poly = as.integer(smooth_poly),
-        verbose = verbose
-      )
+#' @keywords internal
+.get_gene_index <- function(gene, gene_names) {
+  if (is.character(gene)) {
+    idx <- which(gene_names == gene)
+    if (length(idx) == 0) {
+      stop("Gene '", gene, "' not found")
     }
+    idx[1]
   } else {
-    # Bivariate mode - use optimized matrix multiplication
-    # Decide whether to use chunked version based on memory requirements
-    n_radii <- length(radii)
-    cube_size_gb <- as.numeric(n_genes) * as.numeric(n_genes) * n_radii * 8 / 1e9
-
-    use_chunked <- !is.null(chunk_size) && (cube_size_gb > 8 || n_genes > 5000)
-
-    if (use_chunked) {
-      if (verbose) {
-        message("  Using memory-efficient chunked algorithm (estimated cube size: ",
-                round(cube_size_gb, 1), " GB)")
-      }
-      result <- cpp_compute_delta_I_matrix_chunked(
-        expr_matrix = expr_matrix,
-        coords = coords,
-        radii = as.numeric(radii),
-        chunk_size = as.integer(chunk_size),
-        smooth_window = as.integer(smooth_window),
-        smooth_poly = as.integer(smooth_poly),
-        verbose = verbose
-      )
-    } else {
-      result <- cpp_compute_delta_I_matrix(
-        expr_matrix = expr_matrix,
-        coords = coords,
-        radii = as.numeric(radii),
-        smooth_window = as.integer(smooth_window),
-        smooth_poly = as.integer(smooth_poly),
-        verbose = verbose
-      )
-    }
+    as.integer(gene)
   }
-
-  # Add gene names to matrix
-  gene_names <- rownames(expr_matrix)
-  if (!is.null(gene_names)) {
-    rownames(result$delta_I_signed) <- gene_names
-    colnames(result$delta_I_signed) <- gene_names
-  }
-
-  return(result)
 }

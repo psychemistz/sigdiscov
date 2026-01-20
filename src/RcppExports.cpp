@@ -342,6 +342,92 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// cpp_create_circular_weight_matrix
+arma::sp_mat cpp_create_circular_weight_matrix(const arma::mat& coords, double r_outer, const arma::uvec& sender_idx, const arma::uvec& receiver_idx, int mode, bool row_normalize);
+RcppExport SEXP _sigdiscov_cpp_create_circular_weight_matrix(SEXP coordsSEXP, SEXP r_outerSEXP, SEXP sender_idxSEXP, SEXP receiver_idxSEXP, SEXP modeSEXP, SEXP row_normalizeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type coords(coordsSEXP);
+    Rcpp::traits::input_parameter< double >::type r_outer(r_outerSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type sender_idx(sender_idxSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type receiver_idx(receiver_idxSEXP);
+    Rcpp::traits::input_parameter< int >::type mode(modeSEXP);
+    Rcpp::traits::input_parameter< bool >::type row_normalize(row_normalizeSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpp_create_circular_weight_matrix(coords, r_outer, sender_idx, receiver_idx, mode, row_normalize));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cpp_precompute_circular_weights
+Rcpp::List cpp_precompute_circular_weights(const arma::mat& coords, const arma::vec& radii, int mode, const arma::uvec& sender_idx, const arma::uvec& receiver_idx);
+RcppExport SEXP _sigdiscov_cpp_precompute_circular_weights(SEXP coordsSEXP, SEXP radiiSEXP, SEXP modeSEXP, SEXP sender_idxSEXP, SEXP receiver_idxSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type coords(coordsSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type radii(radiiSEXP);
+    Rcpp::traits::input_parameter< int >::type mode(modeSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type sender_idx(sender_idxSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type receiver_idx(receiver_idxSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpp_precompute_circular_weights(coords, radii, mode, sender_idx, receiver_idx));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cpp_compute_four_deltas
+Rcpp::DataFrame cpp_compute_four_deltas(const arma::mat& expr_matrix, const Rcpp::CharacterVector& gene_names, int factor_idx, const arma::mat& coords, const arma::vec& radii, int smooth_window, int smooth_poly, bool verbose);
+RcppExport SEXP _sigdiscov_cpp_compute_four_deltas(SEXP expr_matrixSEXP, SEXP gene_namesSEXP, SEXP factor_idxSEXP, SEXP coordsSEXP, SEXP radiiSEXP, SEXP smooth_windowSEXP, SEXP smooth_polySEXP, SEXP verboseSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type expr_matrix(expr_matrixSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::CharacterVector& >::type gene_names(gene_namesSEXP);
+    Rcpp::traits::input_parameter< int >::type factor_idx(factor_idxSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type coords(coordsSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type radii(radiiSEXP);
+    Rcpp::traits::input_parameter< int >::type smooth_window(smooth_windowSEXP);
+    Rcpp::traits::input_parameter< int >::type smooth_poly(smooth_polySEXP);
+    Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpp_compute_four_deltas(expr_matrix, gene_names, factor_idx, coords, radii, smooth_window, smooth_poly, verbose));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cpp_compute_delta_I_matrix_unified
+Rcpp::List cpp_compute_delta_I_matrix_unified(const arma::mat& expr_matrix, const arma::mat& coords, const arma::vec& radii, int weight_type, int correlation_type, int chunk_size, int smooth_window, int smooth_poly, bool verbose);
+RcppExport SEXP _sigdiscov_cpp_compute_delta_I_matrix_unified(SEXP expr_matrixSEXP, SEXP coordsSEXP, SEXP radiiSEXP, SEXP weight_typeSEXP, SEXP correlation_typeSEXP, SEXP chunk_sizeSEXP, SEXP smooth_windowSEXP, SEXP smooth_polySEXP, SEXP verboseSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type expr_matrix(expr_matrixSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type coords(coordsSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type radii(radiiSEXP);
+    Rcpp::traits::input_parameter< int >::type weight_type(weight_typeSEXP);
+    Rcpp::traits::input_parameter< int >::type correlation_type(correlation_typeSEXP);
+    Rcpp::traits::input_parameter< int >::type chunk_size(chunk_sizeSEXP);
+    Rcpp::traits::input_parameter< int >::type smooth_window(smooth_windowSEXP);
+    Rcpp::traits::input_parameter< int >::type smooth_poly(smooth_polySEXP);
+    Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpp_compute_delta_I_matrix_unified(expr_matrix, coords, radii, weight_type, correlation_type, chunk_size, smooth_window, smooth_poly, verbose));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cpp_compute_four_deltas_multi
+Rcpp::List cpp_compute_four_deltas_multi(const arma::mat& expr_matrix, const Rcpp::CharacterVector& gene_names, const Rcpp::CharacterVector& factor_names, const arma::mat& coords, const arma::vec& radii, int smooth_window, int smooth_poly, bool verbose);
+RcppExport SEXP _sigdiscov_cpp_compute_four_deltas_multi(SEXP expr_matrixSEXP, SEXP gene_namesSEXP, SEXP factor_namesSEXP, SEXP coordsSEXP, SEXP radiiSEXP, SEXP smooth_windowSEXP, SEXP smooth_polySEXP, SEXP verboseSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type expr_matrix(expr_matrixSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::CharacterVector& >::type gene_names(gene_namesSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::CharacterVector& >::type factor_names(factor_namesSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type coords(coordsSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type radii(radiiSEXP);
+    Rcpp::traits::input_parameter< int >::type smooth_window(smooth_windowSEXP);
+    Rcpp::traits::input_parameter< int >::type smooth_poly(smooth_polySEXP);
+    Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpp_compute_four_deltas_multi(expr_matrix, gene_names, factor_names, coords, radii, smooth_window, smooth_poly, verbose));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_sigdiscov_cpp_create_distance", (DL_FUNC) &_sigdiscov_cpp_create_distance, 2},
@@ -365,6 +451,11 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sigdiscov_cpp_compute_delta_I_matrix_IND_fast", (DL_FUNC) &_sigdiscov_cpp_compute_delta_I_matrix_IND_fast, 7},
     {"_sigdiscov_cpp_compute_delta_I_matrix_directional", (DL_FUNC) &_sigdiscov_cpp_compute_delta_I_matrix_directional, 7},
     {"_sigdiscov_cpp_compute_signatures_multi_factor", (DL_FUNC) &_sigdiscov_cpp_compute_signatures_multi_factor, 10},
+    {"_sigdiscov_cpp_create_circular_weight_matrix", (DL_FUNC) &_sigdiscov_cpp_create_circular_weight_matrix, 6},
+    {"_sigdiscov_cpp_precompute_circular_weights", (DL_FUNC) &_sigdiscov_cpp_precompute_circular_weights, 5},
+    {"_sigdiscov_cpp_compute_four_deltas", (DL_FUNC) &_sigdiscov_cpp_compute_four_deltas, 8},
+    {"_sigdiscov_cpp_compute_delta_I_matrix_unified", (DL_FUNC) &_sigdiscov_cpp_compute_delta_I_matrix_unified, 9},
+    {"_sigdiscov_cpp_compute_four_deltas_multi", (DL_FUNC) &_sigdiscov_cpp_compute_four_deltas_multi, 8},
     {NULL, NULL, 0}
 };
 
