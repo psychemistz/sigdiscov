@@ -16,18 +16,9 @@ Description: Compute pairwise Moran's I statistics and signed delta I signatures
 License: MIT + file LICENSE
 Encoding: UTF-8
 Depends: R (>= 3.5.0)
-Imports:
-    Rcpp (>= 1.0.0),
-    Matrix,
-    methods,
-    stats,
-    graphics
-Suggests:
-    sctransform,
-    testthat (>= 3.0.0)
-LinkingTo:
-    Rcpp,
-    RcppArmadillo
+Imports: Rcpp (>= 1.0.0), Matrix, methods, stats, graphics
+Suggests: sctransform, testthat (>= 3.0.0)
+LinkingTo: Rcpp, RcppArmadillo
 RoxygenNote: 7.3.3
 SystemRequirements: C++17
 NeedsCompilation: yes
