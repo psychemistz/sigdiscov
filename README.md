@@ -2,32 +2,32 @@
 
 **Spatial Correlation Analysis for Spatial Transcriptomics**
 
-[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](https://github.com/psychemistz/sigdiscov/releases)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/psychemistz/sigdiscov/releases/tag/v1.1.0)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Compute pairwise Moran's I statistics, signed delta I signatures, and directional spatial correlations (I_ND) for spatial transcriptomics data. Supports both spot-based platforms (10x Visium) and single-cell resolution platforms (CosMx, Xenium, MERFISH).
+Compute pairwise Moran's I statistics and signed delta I signatures for spatial transcriptomics data. Optimized for 10x Visium data using BLAS matrix operations.
 
-## Version History
+## What's in This Version (v1.1.0)
 
-| Version | Features |
-|---------|----------|
-| **v1.2.0** | Single-cell ST support (CosMx, Xenium, MERFISH), cell-type-aware I_ND, permutation testing |
-| **v1.1.0** | Signed delta I signatures, distance-dependent spatial correlation curves |
-| **v1.0.0** | Basic pairwise Moran's I for Visium |
+- **Pairwise Moran's I**: Spatial autocorrelation between gene pairs
+- **Signed Delta I Signatures**: Distance-dependent spatial correlation curves
+- **Moran Curve Visualization**: Plot spatial decay patterns
+
+> **Note**: For single-cell ST support (CosMx, Xenium, MERFISH) and permutation testing, upgrade to [v1.2.0](https://github.com/psychemistz/sigdiscov/tree/release/v1.2.0).
 
 ## Installation
 
 ```r
-# Install latest version from GitHub
-devtools::install_github("psychemistz/sigdiscov")
+# Install this version
+devtools::install_github("psychemistz/sigdiscov@v1.1.0")
 
-# Install specific version
-devtools::install_github("psychemistz/sigdiscov@v1.2.0")
+# Or install latest
+devtools::install_github("psychemistz/sigdiscov")
 ```
 
 ## Key Features
 
-### 1. Pairwise Moran's I (All versions)
+### 1. Pairwise Moran's I
 Compute spatial autocorrelation between all gene pairs.
 
 ```r
@@ -43,7 +43,7 @@ coords <- get_spot_coords(visium)
 moran <- pairwise_moran(data_vst, coords)
 ```
 
-### 2. Signed Delta I Signatures (v1.1.0+)
+### 2. Signed Delta I Signatures
 Distance-dependent spatial correlation curves to distinguish responsive genes.
 
 ```r
@@ -59,72 +59,18 @@ result <- compute_signed_delta_I(
 plot_moran_curve(result, gene = "CXCL8")
 ```
 
-### 3. Single-Cell ST Analysis (v1.2.0)
-Cell-type-aware directional I_ND for single-cell resolution platforms.
-
-```r
-# Load single-cell ST data (CosMx, Xenium, MERFISH)
-cell_meta <- data.frame(
-    cell_id = colnames(expr_matrix),
-    x = spatial_coords$x,
-    y = spatial_coords$y,
-    cell_type = cell_annotations
-)
-
-# Compute I_ND for a specific cell-type triplet
-result <- compute_IND_sc(
-    expr_matrix = expr_matrix,
-    cell_meta = cell_meta,
-    factor_gene = "IL1B",
-    sender_type = "Macrophage",
-    receiver_type = "Fibroblast",
-    radii = seq(20, 100, 20)
-)
-
-# Multi-factor analysis (efficient)
-results <- compute_IND_multi_factor(
-    expr_matrix = expr_matrix,
-    cell_meta = cell_meta,
-    factor_genes = c("IL1B", "TGFB1", "IFNG"),
-    sender_type = "Macrophage",
-    receiver_type = "Fibroblast"
-)
-```
-
-### 4. Permutation Testing (v1.2.0)
-Statistical significance testing for spatial correlations.
-
-```r
-# Permutation test for single factor
-perm_result <- permutation_test_spatial(
-    expr_matrix = expr_matrix,
-    cell_meta = cell_meta,
-    factor_gene = "IL1B",
-    sender_type = "Macrophage",
-    receiver_type = "Fibroblast",
-    n_perm = 999
-)
-
-# Vectorized multi-factor test (9x faster)
-results <- permutation_test_multi_factor(
-    expr_matrix = expr_matrix,
-    cell_meta = cell_meta,
-    factor_genes = c("IL1B", "TGFB1", "IFNG", "TNF", "IL6"),
-    sender_type = "Macrophage",
-    receiver_type = "Fibroblast",
-    n_perm = 999
-)
-
-# Significant genes (FDR < 0.05)
-sig_genes <- results[["IL1B"]][results[["IL1B"]]$p_adj < 0.05, ]
-```
-
 ## Performance
 
 - **BLAS backend**: Apple Accelerate (Mac), OpenBLAS/MKL (Linux/Windows)
 - **Pairwise Moran's I**: ~2,000x speedup vs naive implementation
-- **Single-cell I_ND**: Optimized for datasets with 100k+ cells
-- **Permutation testing**: Vectorized BLAS operations for multi-factor tests
+
+## Version History
+
+| Version | Features |
+|---------|----------|
+| **v1.2.0** | Single-cell ST support, permutation testing |
+| **v1.1.0** | Signed delta I signatures (this version) |
+| **v1.0.0** | Basic pairwise Moran's I |
 
 ## Citation
 
