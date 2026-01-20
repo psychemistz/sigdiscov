@@ -1,3 +1,44 @@
+# Eclipse/IDE files
 .cproject
 .project
 .settings
+.Rproj.user/
+*.Rproj
+
+# R package build artifacts
+*.tar.gz
+*.Rcheck/
+*.o
+*.so
+*.dll
+
+# Build directories
+Release/
+Debug/
+
+# R session files
+.Rhistory
+.RData
+.Ruserdata
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*~
+\#*\#
+
+# Output directories
+output/
+
+# Compiled executables
+compute_delta_all
+
+# Development/test files (keep in repo but ignore local changes)
+# Uncomment if you want to exclude these:
+# test_*.R
+# *_context.md
+# dataset/
+# preprocess/
+# accelerate/

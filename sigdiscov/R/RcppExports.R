@@ -29,3 +29,119 @@ cpp_compute_moran_full_sparse <- function(data_sparse, spot_row, spot_col, max_r
     .Call(`_sigdiscov_cpp_compute_moran_full_sparse`, data_sparse, spot_row, spot_col, max_radius, platform, flag_samespot, paired_genes, all_genes, verbose)
 }
 
+cpp_permutation_test_moran <- function(z_f, z_g, W, n_perm = 999L, seed = -1L) {
+    .Call(`_sigdiscov_cpp_permutation_test_moran`, z_f, z_g, W, n_perm, seed)
+}
+
+cpp_permutation_test_IND <- function(z_U, z_V, W, n_perm = 999L, seed = -1L) {
+    .Call(`_sigdiscov_cpp_permutation_test_IND`, z_U, z_V, W, n_perm, seed)
+}
+
+cpp_batch_permutation_test <- function(expr_matrix, gene_names, factor_idx, W, sender_idx, receiver_idx, n_perm = 999L, metric = 1L, seed = -1L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_batch_permutation_test`, expr_matrix, gene_names, factor_idx, W, sender_idx, receiver_idx, n_perm, metric, seed, verbose)
+}
+
+cpp_batch_permutation_test_radii <- function(expr_matrix, gene_names, factor_idx, coords, sender_idx, receiver_idx, radii, n_perm = 999L, seed = -1L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_batch_permutation_test_radii`, expr_matrix, gene_names, factor_idx, coords, sender_idx, receiver_idx, radii, n_perm, seed, verbose)
+}
+
+cpp_batch_permutation_multi_factor_vectorized <- function(expr_matrix, gene_names, factor_indices, factor_names, W, sender_idx, receiver_idx, n_perm = 999L, seed = -1L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_batch_permutation_multi_factor_vectorized`, expr_matrix, gene_names, factor_indices, factor_names, W, sender_idx, receiver_idx, n_perm, seed, verbose)
+}
+
+cpp_create_ring_weight_matrix <- function(coords, r_inner, r_outer, sender_idx, receiver_idx, mode = 0L, row_normalize = TRUE) {
+    .Call(`_sigdiscov_cpp_create_ring_weight_matrix`, coords, r_inner, r_outer, sender_idx, receiver_idx, mode, row_normalize)
+}
+
+cpp_compute_spatial_correlation <- function(z_f, z_g, W, mode = 0L) {
+    .Call(`_sigdiscov_cpp_compute_spatial_correlation`, z_f, z_g, W, mode)
+}
+
+cpp_moving_avg_smooth <- function(y, window_size = 3L) {
+    .Call(`_sigdiscov_cpp_moving_avg_smooth`, y, window_size)
+}
+
+cpp_savgol_smooth <- function(y, window_size = 5L, poly_order = 2L) {
+    .Call(`_sigdiscov_cpp_savgol_smooth`, y, window_size, poly_order)
+}
+
+cpp_compute_signed_delta_I <- function(I_smooth, radii) {
+    .Call(`_sigdiscov_cpp_compute_signed_delta_I`, I_smooth, radii)
+}
+
+cpp_compute_moran_curve <- function(factor_expr, gene_expr, coords, radii, mode = 0L, sender_idx, receiver_idx) {
+    .Call(`_sigdiscov_cpp_compute_moran_curve`, factor_expr, gene_expr, coords, radii, mode, sender_idx, receiver_idx)
+}
+
+cpp_define_sender_receiver <- function(factor_expr, percentile = 75.0) {
+    .Call(`_sigdiscov_cpp_define_sender_receiver`, factor_expr, percentile)
+}
+
+cpp_compute_single_signature <- function(factor_expr, gene_expr, coords, radii, mode = 0L, sender_percentile = 75.0, smooth_window = 5L, smooth_poly = 2L) {
+    .Call(`_sigdiscov_cpp_compute_single_signature`, factor_expr, gene_expr, coords, radii, mode, sender_percentile, smooth_window, smooth_poly)
+}
+
+cpp_precompute_ring_weights <- function(coords, radii, mode = 0L, sender_idx, receiver_idx) {
+    .Call(`_sigdiscov_cpp_precompute_ring_weights`, coords, radii, mode, sender_idx, receiver_idx)
+}
+
+cpp_compute_all_signatures <- function(expr_matrix, gene_names, factor_idx, coords, radii, mode = 0L, sender_percentile = 75.0, smooth_window = 5L, smooth_poly = 2L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_compute_all_signatures`, expr_matrix, gene_names, factor_idx, coords, radii, mode, sender_percentile, smooth_window, smooth_poly, verbose)
+}
+
+cpp_compute_delta_I_matrix <- function(expr_matrix, coords, radii, smooth_window = 5L, smooth_poly = 2L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_compute_delta_I_matrix`, expr_matrix, coords, radii, smooth_window, smooth_poly, verbose)
+}
+
+cpp_compute_delta_I_matrix_chunked <- function(expr_matrix, coords, radii, chunk_size = 1000L, smooth_window = 5L, smooth_poly = 2L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_compute_delta_I_matrix_chunked`, expr_matrix, coords, radii, chunk_size, smooth_window, smooth_poly, verbose)
+}
+
+cpp_compute_delta_I_matrix_IND_fast <- function(expr_matrix, coords, radii, chunk_size = 1000L, smooth_window = 5L, smooth_poly = 2L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_compute_delta_I_matrix_IND_fast`, expr_matrix, coords, radii, chunk_size, smooth_window, smooth_poly, verbose)
+}
+
+cpp_compute_delta_I_matrix_directional <- function(expr_matrix, coords, radii, sender_percentile = 75.0, smooth_window = 5L, smooth_poly = 2L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_compute_delta_I_matrix_directional`, expr_matrix, coords, radii, sender_percentile, smooth_window, smooth_poly, verbose)
+}
+
+cpp_compute_signatures_multi_factor <- function(expr_matrix, gene_names, factor_indices, coords, radii, mode = 0L, sender_percentile = 75.0, smooth_window = 5L, smooth_poly = 2L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_compute_signatures_multi_factor`, expr_matrix, gene_names, factor_indices, coords, radii, mode, sender_percentile, smooth_window, smooth_poly, verbose)
+}
+
+cpp_create_circular_weight_matrix <- function(coords, r_outer, sender_idx, receiver_idx, mode = 0L, row_normalize = TRUE) {
+    .Call(`_sigdiscov_cpp_create_circular_weight_matrix`, coords, r_outer, sender_idx, receiver_idx, mode, row_normalize)
+}
+
+cpp_precompute_circular_weights <- function(coords, radii, mode = 0L, sender_idx, receiver_idx) {
+    .Call(`_sigdiscov_cpp_precompute_circular_weights`, coords, radii, mode, sender_idx, receiver_idx)
+}
+
+cpp_compute_four_deltas <- function(expr_matrix, gene_names, factor_idx, coords, radii, smooth_window = 5L, smooth_poly = 2L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_compute_four_deltas`, expr_matrix, gene_names, factor_idx, coords, radii, smooth_window, smooth_poly, verbose)
+}
+
+cpp_compute_delta_I_matrix_unified <- function(expr_matrix, coords, radii, weight_type = 0L, correlation_type = 0L, chunk_size = 1000L, smooth_window = 5L, smooth_poly = 2L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_compute_delta_I_matrix_unified`, expr_matrix, coords, radii, weight_type, correlation_type, chunk_size, smooth_window, smooth_poly, verbose)
+}
+
+cpp_compute_four_deltas_multi <- function(expr_matrix, gene_names, factor_names, coords, radii, smooth_window = 5L, smooth_poly = 2L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_compute_four_deltas_multi`, expr_matrix, gene_names, factor_names, coords, radii, smooth_window, smooth_poly, verbose)
+}
+
+cpp_create_ring_weight_matrix_sc <- function(coords, sender_idx, receiver_idx, r_inner, r_outer, row_normalize = TRUE) {
+    .Call(`_sigdiscov_cpp_create_ring_weight_matrix_sc`, coords, sender_idx, receiver_idx, r_inner, r_outer, row_normalize)
+}
+
+cpp_compute_IND_curve_sc <- function(factor_expr, gene_expr, coords, sender_idx, receiver_idx, radii, smooth_window = 5L, smooth_poly = 2L) {
+    .Call(`_sigdiscov_cpp_compute_IND_curve_sc`, factor_expr, gene_expr, coords, sender_idx, receiver_idx, radii, smooth_window, smooth_poly)
+}
+
+cpp_compute_IND_signatures_sc <- function(expr_matrix, gene_names, factor_idx, coords, sender_idx, receiver_idx, radii, smooth_window = 5L, smooth_poly = 2L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_compute_IND_signatures_sc`, expr_matrix, gene_names, factor_idx, coords, sender_idx, receiver_idx, radii, smooth_window, smooth_poly, verbose)
+}
+
+cpp_compute_IND_multi_factor <- function(expr_matrix, gene_names, factor_indices, factor_names, coords, sender_idx, receiver_idx, radii, smooth_window = 5L, smooth_poly = 2L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_compute_IND_multi_factor`, expr_matrix, gene_names, factor_indices, factor_names, coords, sender_idx, receiver_idx, radii, smooth_window, smooth_poly, verbose)
+}
+
