@@ -22,7 +22,7 @@ An R package for computing pairwise Moran's I statistics between genes in spatia
 install.packages("devtools")
 
 # Install sigdiscov
-devtools::install_github("psychemistz/sigdiscov", subdir = "sigdiscov")
+devtools::install_github("psychemistz/sigdiscov")
 ```
 
 ### Dependencies
@@ -98,6 +98,7 @@ library(sigdiscov)
 # Load your data (genes x spots matrix)
 # Column names should be in "ROWxCOL" format (e.g., "5x10", "5x12")
 data <- read.table("expression.tsv", header = TRUE, row.names = 1)
+colnames(data) <- gsub("X", "", colnames(data))
 data <- as.matrix(data)
 
 # Parse spot coordinates from column names

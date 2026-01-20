@@ -236,11 +236,13 @@ save_moran_result <- function(result, output_file, verbose = TRUE) {
 #' Load pairwise Moran's I results from a file in lower triangular format.
 #'
 #' @param input_file Path to input file.
+#' @param gene_names Optional character vector of gene names for row/column names.
+#'   If NULL, tries to read from a file with same name but .genes extension.
 #'
-#' @return A symmetric matrix of pairwise Moran's I values.
+#' @return A symmetric matrix of pairwise Moran's I values with row/column names.
 #'
 #' @export
-load_moran_result <- function(input_file) {
+load_moran_result <- function(input_file, gene_names = NULL) {
   lines <- readLines(input_file)
   n <- length(lines)
   mat <- matrix(0, nrow = n, ncol = n)
@@ -251,6 +253,20 @@ load_moran_result <- function(input_file) {
     if (i > 1) {
       mat[1:(i-1), i] <- vals[1:(i-1)]
     }
+  }
+
+  # Set row/column names
+  if (is.null(gene_names)) {
+    # Try to read from .genes file
+    genes_file <- sub("\\.[^.]+$", ".genes", input_file)
+    if (file.exists(genes_file)) {
+      gene_names <- readLines(genes_file)
+    }
+  }
+
+  if (!is.null(gene_names) && length(gene_names) == n) {
+    rownames(mat) <- gene_names
+    colnames(mat) <- gene_names
   }
 
   return(mat)
