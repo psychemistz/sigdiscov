@@ -268,6 +268,97 @@ compute_signature_visium <- function(data,
     )
 }
 
+#' Pairwise Moran's I Matrix Computation
+#'
+#' Computes Moran's I for all gene pairs across multiple radii.
+#' This is the classic pairwise analysis from pre-processed VST data.
+#'
+#' @param data Numeric matrix. Expression data (genes x spots), typically VST-transformed.
+#' @param coords Data frame or matrix. Spot coordinates with row/col columns.
+#' @param max_radius Integer. Maximum neighbor ring (default: 3).
+#' @param platform Character. Platform type (default: "visium").
+#' @param same_spot Logical. Include same-spot comparisons (default: TRUE).
+#' @param mode Character. Computation mode: "paired" (default).
+#' @param verbose Logical. Print progress (default: TRUE).
+#'
+#' @return Numeric matrix (n_genes x n_genes) of Moran's I values at the first radius.
+#'
+#' @details
+#' This function computes the classic pairwise Moran's I matrix where each
+#' entry (i,j) represents the spatial correlation between gene i and gene j.
+#'
+#' The computation uses binary weights where spots within the specified
+#' radius are neighbors (weight = 1/n_neighbors).
+#'
+#' @examples
+#' \dontrun{
+#' # Load VST-transformed data
+#' data <- read.table("vst.tsv", header=TRUE, row.names=1)
+#' colnames(data) <- gsub("X", "", colnames(data))
+#' data <- as.matrix(data)
+#'
+#' # Parse spot coordinates
+#' spot_coords <- parse_spot_names(colnames(data))
+#'
+#' # Compute pairwise Moran's I
+#' result <- pairwise_moran(data, spot_coords, max_radius = 3)
+#' result[1:5, 1:5]
+#' }
+#'
+#' @export
+pairwise_moran <- function(data, coords, max_radius = 3,
+                           platform = "visium", same_spot = TRUE,
+                           mode = "paired", verbose = TRUE) {
+
+    # Ensure data is matrix
+    if (!is.matrix(data)) {
+        data <- as.matrix(data)
+    }
+
+    # Ensure coords is matrix
+    if (is.data.frame(coords)) {
+        coords <- as.matrix(coords[, c("row", "col")])
+    }
+
+    n_spots <- ncol(data)
+    n_genes <- nrow(data)
+
+    if (verbose) {
+        cat("Pairwise Moran's I\n")
+        cat(n_spots, "spots,", n_genes, "genes\n")
+    }
+
+    # Z-normalize data (gene-wise)
+    if (verbose) cat("Z-normalizing data...\n")
+    Z <- t(scale(t(data)))  # genes x spots, each row normalized
+
+    # Create weight matrix for radius 1 (immediate neighbors in Visium)
+    # For Visium, radius = 100 captures the first ring
+    if (verbose) cat("Creating weight matrix...\n")
+    radius <- max_radius * 100  # Convert ring number to distance
+    W <- create_weights_visium(coords, radius = 100)  # First ring neighbors
+
+    if (verbose) cat("Weight sum:", sum(W), "\n")
+
+    # Compute pairwise Moran's I
+    # For each gene pair (i, j): I_ij = z_i' * W * z_j / n
+    if (verbose) cat("Computing pairwise Moran's I...\n")
+
+    # Spatial lag matrix: W * Z' (each column is lag of one gene)
+    lag_Z <- as.matrix(W %*% t(Z))  # n_spots x n_genes
+
+    # Moran matrix: Z * lag_Z / n
+    # I[i,j] = sum(Z[i,] * lag_Z[,j]) / n_spots
+    moran_matrix <- Z %*% lag_Z / n_spots
+
+    rownames(moran_matrix) <- rownames(data)
+    colnames(moran_matrix) <- rownames(data)
+
+    if (verbose) cat("Done.\n")
+
+    return(moran_matrix)
+}
+
 #' Print Method for VisiumSignature
 #'
 #' @param x A VisiumSignature object.

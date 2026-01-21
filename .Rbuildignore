@@ -1,0 +1,36 @@
+# Development directories
+^dataset$
+^output$
+^accelerate$
+^preprocess$
+^\.claude$
+
+# Development scripts
+^test_.*\.R$
+^compute_all_delta_matrices\.R$
+^compare_deltas\.R$
+^analyze_delta_cir_ind\.R$
+^fixed_correlation_analysis\.R$
+^full_correlation_analysis\.R$
+^correlation_.*\.R$
+
+# Documentation files
+^.*_context\.md$
+^REFACTORING_PLAN\.md$
+^sigdiscov_.*\.md$
+
+# Build artifacts
+^.*\.Rcheck$
+^.*\.tar\.gz$
+^compute_delta_all$
+^compute_delta_all\.cpp$
+
+# Python files
+^.*\.py$
+
+# IDE files
+^\.Rproj\.user$
+^.*\.Rproj$
+^\.cproject$
+^\.project$
+^\.settings$
