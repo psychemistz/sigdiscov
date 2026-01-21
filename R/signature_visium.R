@@ -282,9 +282,8 @@ compute_signature_visium <- function(data,
 #' @param same_spot Whether to consider the same spot in computation. Default: FALSE.
 #' @param mode Computation mode: "paired" (all pairs), "first" (pairs with first gene),
 #'   or "single" (diagonal only). Default: "paired".
-#' @param sparse_W Use sparse weight matrix for memory efficiency. Default: FALSE.
-#'   When TRUE, uses ~99% less memory for the weight matrix but may have
-#'   slightly different performance characteristics.
+#' @param sparse_W Use sparse weight matrix for memory efficiency. Default: TRUE.
+#'   Uses ~99% less memory for the weight matrix with similar computation speed.
 #' @param verbose Print progress messages. Default: TRUE.
 #'
 #' @return A matrix of pairwise Moran's I values. For mode="paired", returns a
@@ -326,7 +325,7 @@ pairwise_moran <- function(data,
                            platform = c("visium", "old"),
                            same_spot = FALSE,
                            mode = c("paired", "first", "single"),
-                           sparse_W = FALSE,
+                           sparse_W = TRUE,
                            verbose = TRUE) {
 
     platform <- match.arg(platform)

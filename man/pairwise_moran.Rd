@@ -11,7 +11,7 @@ pairwise_moran(
   platform = c("visium", "old"),
   same_spot = FALSE,
   mode = c("paired", "first", "single"),
-  sparse_W = FALSE,
+  sparse_W = TRUE,
   verbose = TRUE
 )
 }
@@ -31,9 +31,8 @@ columns named 'row' and 'col', or be a 2-column matrix.}
 \item{mode}{Computation mode: "paired" (all pairs), "first" (pairs with first gene),
 or "single" (diagonal only). Default: "paired".}
 
-\item{sparse_W}{Use sparse weight matrix for memory efficiency. Default: FALSE.
-When TRUE, uses ~99\% less memory for the weight matrix but may have
-slightly different performance characteristics.}
+\item{sparse_W}{Use sparse weight matrix for memory efficiency. Default: TRUE.
+Uses ~99\% less memory for the weight matrix with similar computation speed.}
 
 \item{verbose}{Print progress messages. Default: TRUE.}
 }
