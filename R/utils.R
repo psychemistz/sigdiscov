@@ -1,40 +1,23 @@
 #' Parse Spot Names to Coordinates
 #'
-#' Parses Visium spot names in "ROW_COL" or "ROWxCOL" format to extract
-#' row and column coordinates.
+#' Convert spot names in format "ROWxCOL" to coordinate data frame.
 #'
-#' @param spot_names Character vector of spot names (e.g., "0_50", "1x49").
-#' @param sep Character. Separator between row and column (default: auto-detect).
-#' @param scale Numeric. Scale factor to convert to distance units (default: 100).
+#' @param spot_names Character vector of spot names (e.g., "5x10", "3x7").
 #'
-#' @return Data frame with columns: row, col (scaled coordinates).
+#' @return A data frame with columns 'row' and 'col'.
 #'
 #' @examples
-#' spots <- c("0_50", "1_49", "2_50")
+#' spots <- c("5x10", "5x12", "6x11")
 #' coords <- parse_spot_names(spots)
-#' coords
 #'
 #' @export
-parse_spot_names <- function(spot_names, sep = NULL, scale = 100) {
-    # Auto-detect separator
-    if (is.null(sep)) {
-        if (any(grepl("_", spot_names))) {
-            sep <- "_"
-        } else if (any(grepl("x", spot_names))) {
-            sep <- "x"
-        } else {
-            stop("Cannot detect separator in spot names. Use sep parameter.")
-        }
-    }
-
-    parts <- strsplit(spot_names, sep, fixed = TRUE)
-    rows <- as.numeric(sapply(parts, `[`, 1))
-    cols <- as.numeric(sapply(parts, `[`, 2))
-
-    data.frame(
-        row = rows * scale,
-        col = cols * scale
+parse_spot_names <- function(spot_names) {
+    parts <- strsplit(spot_names, "x")
+    coords <- data.frame(
+        row = as.integer(sapply(parts, `[`, 1)),
+        col = as.integer(sapply(parts, `[`, 2))
     )
+    return(coords)
 }
 
 #' Standardize Vector (Z-score)

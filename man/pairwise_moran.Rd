@@ -2,46 +2,50 @@
 % Please edit documentation in R/signature_visium.R
 \name{pairwise_moran}
 \alias{pairwise_moran}
-\title{Pairwise Moran's I Matrix Computation}
+\title{Pairwise Moran's I for Spatial Transcriptomics}
 \usage{
 pairwise_moran(
   data,
-  coords,
-  max_radius = 3,
-  platform = "visium",
+  spot_coords,
+  max_radius = 5,
+  platform = c("visium", "old"),
   same_spot = FALSE,
-  mode = "paired",
+  mode = c("paired", "first", "single"),
   verbose = TRUE
 )
 }
 \arguments{
-\item{data}{Numeric matrix. Expression data (genes x spots), typically VST-transformed.}
+\item{data}{A matrix or sparse matrix (dgCMatrix) of gene expression values.
+Rows are genes, columns are spots.}
 
-\item{coords}{Data frame or matrix. Spot coordinates with row/col columns.}
+\item{spot_coords}{A data frame or matrix with spot coordinates. Should have
+columns named 'row' and 'col', or be a 2-column matrix.}
 
-\item{max_radius}{Integer. Maximum neighbor ring (default: 3).}
+\item{max_radius}{Maximum grid radius for computing distances. Default: 5.}
 
-\item{platform}{Character. Platform type (default: "visium").}
+\item{platform}{Platform type: "visium" (default) or "old".}
 
-\item{same_spot}{Logical. Include same-spot comparisons (default: FALSE).}
+\item{same_spot}{Whether to consider the same spot in computation. Default: FALSE.}
 
-\item{mode}{Character. Computation mode: "paired" (default).}
+\item{mode}{Computation mode: "paired" (all pairs), "first" (pairs with first gene),
+or "single" (diagonal only). Default: "paired".}
 
-\item{verbose}{Logical. Print progress (default: TRUE).}
+\item{verbose}{Print progress messages. Default: TRUE.}
 }
 \value{
-Numeric matrix (n_genes x n_genes) of Moran's I values at the first radius.
+A matrix of pairwise Moran's I values. For mode="paired", returns a
+symmetric matrix where element \link{i,j} is the Moran's I between genes i and j.
 }
 \description{
-Computes Moran's I for all gene pairs across multiple radii.
-This is the classic pairwise analysis from pre-processed VST data.
+Compute pairwise Moran's I statistics between all genes in spatial
+transcriptomics data using Gaussian distance decay weights.
 }
 \details{
 This function computes the classic pairwise Moran's I matrix where each
 entry (i,j) represents the spatial correlation between gene i and gene j.
 
-The computation uses binary weights where spots within the specified
-radius are neighbors (weight = 1/n_neighbors).
+Uses Gaussian distance decay weights with sigma=100 for Visium data,
+accounting for the hexagonal grid geometry.
 }
 \examples{
 \dontrun{

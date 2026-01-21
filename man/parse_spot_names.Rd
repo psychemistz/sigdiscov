@@ -4,25 +4,19 @@
 \alias{parse_spot_names}
 \title{Parse Spot Names to Coordinates}
 \usage{
-parse_spot_names(spot_names, sep = NULL, scale = 100)
+parse_spot_names(spot_names)
 }
 \arguments{
-\item{spot_names}{Character vector of spot names (e.g., "0_50", "1x49").}
-
-\item{sep}{Character. Separator between row and column (default: auto-detect).}
-
-\item{scale}{Numeric. Scale factor to convert to distance units (default: 100).}
+\item{spot_names}{Character vector of spot names (e.g., "5x10", "3x7").}
 }
 \value{
-Data frame with columns: row, col (scaled coordinates).
+A data frame with columns 'row' and 'col'.
 }
 \description{
-Parses Visium spot names in "ROW_COL" or "ROWxCOL" format to extract
-row and column coordinates.
+Convert spot names in format "ROWxCOL" to coordinate data frame.
 }
 \examples{
-spots <- c("0_50", "1_49", "2_50")
+spots <- c("5x10", "5x12", "6x11")
 coords <- parse_spot_names(spots)
-coords
 
 }

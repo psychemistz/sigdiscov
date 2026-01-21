@@ -268,27 +268,31 @@ compute_signature_visium <- function(data,
     )
 }
 
-#' Pairwise Moran's I Matrix Computation
+#' Pairwise Moran's I for Spatial Transcriptomics
 #'
-#' Computes Moran's I for all gene pairs across multiple radii.
-#' This is the classic pairwise analysis from pre-processed VST data.
+#' Compute pairwise Moran's I statistics between all genes in spatial
+#' transcriptomics data using Gaussian distance decay weights.
 #'
-#' @param data Numeric matrix. Expression data (genes x spots), typically VST-transformed.
-#' @param coords Data frame or matrix. Spot coordinates with row/col columns.
-#' @param max_radius Integer. Maximum neighbor ring (default: 3).
-#' @param platform Character. Platform type (default: "visium").
-#' @param same_spot Logical. Include same-spot comparisons (default: FALSE).
-#' @param mode Character. Computation mode: "paired" (default).
-#' @param verbose Logical. Print progress (default: TRUE).
+#' @param data A matrix or sparse matrix (dgCMatrix) of gene expression values.
+#'   Rows are genes, columns are spots.
+#' @param spot_coords A data frame or matrix with spot coordinates. Should have
+#'   columns named 'row' and 'col', or be a 2-column matrix.
+#' @param max_radius Maximum grid radius for computing distances. Default: 5.
+#' @param platform Platform type: "visium" (default) or "old".
+#' @param same_spot Whether to consider the same spot in computation. Default: FALSE.
+#' @param mode Computation mode: "paired" (all pairs), "first" (pairs with first gene),
+#'   or "single" (diagonal only). Default: "paired".
+#' @param verbose Print progress messages. Default: TRUE.
 #'
-#' @return Numeric matrix (n_genes x n_genes) of Moran's I values at the first radius.
+#' @return A matrix of pairwise Moran's I values. For mode="paired", returns a
+#'   symmetric matrix where element [i,j] is the Moran's I between genes i and j.
 #'
 #' @details
 #' This function computes the classic pairwise Moran's I matrix where each
 #' entry (i,j) represents the spatial correlation between gene i and gene j.
 #'
-#' The computation uses binary weights where spots within the specified
-#' radius are neighbors (weight = 1/n_neighbors).
+#' Uses Gaussian distance decay weights with sigma=100 for Visium data,
+#' accounting for the hexagonal grid geometry.
 #'
 #' @examples
 #' \dontrun{
@@ -306,57 +310,177 @@ compute_signature_visium <- function(data,
 #' }
 #'
 #' @export
-pairwise_moran <- function(data, coords, max_radius = 3,
-                           platform = "visium", same_spot = FALSE,
-                           mode = "paired", verbose = TRUE) {
+pairwise_moran <- function(data,
+                           spot_coords,
+                           max_radius = 5,
+                           platform = c("visium", "old"),
+                           same_spot = FALSE,
+                           mode = c("paired", "first", "single"),
+                           verbose = TRUE) {
 
-    # Ensure data is matrix
-    if (!is.matrix(data)) {
+    platform <- match.arg(platform)
+    mode <- match.arg(mode)
+
+    # Convert platform to integer
+    platform_int <- if (platform == "visium") 0L else 1L
+
+    # Convert mode to booleans
+    paired_genes <- mode != "single"
+    all_genes <- mode == "paired"
+
+    # Parse spot coordinates
+    if (is.data.frame(spot_coords)) {
+        if ("row" %in% names(spot_coords) && "col" %in% names(spot_coords)) {
+            spot_row <- as.integer(spot_coords$row)
+            spot_col <- as.integer(spot_coords$col)
+        } else {
+            spot_row <- as.integer(spot_coords[[1]])
+            spot_col <- as.integer(spot_coords[[2]])
+        }
+    } else if (is.matrix(spot_coords)) {
+        spot_row <- as.integer(spot_coords[, 1])
+        spot_col <- as.integer(spot_coords[, 2])
+    } else {
+        stop("spot_coords must be a data frame or matrix")
+    }
+
+    # Validate dimensions
+    if (ncol(data) != length(spot_row)) {
+        stop("Number of columns in data must match number of spots in spot_coords")
+    }
+
+    # Convert to matrix if needed and call C++ function
+    if (methods::is(data, "sparseMatrix")) {
+        # Sparse matrix path
+        data <- methods::as(data, "dgCMatrix")
+        result <- cpp_compute_moran_full_sparse(
+            data,
+            spot_row, spot_col,
+            as.integer(max_radius),
+            platform_int,
+            same_spot,
+            paired_genes,
+            all_genes,
+            verbose
+        )
+    } else {
+        # Dense matrix path
         data <- as.matrix(data)
+        result <- cpp_compute_moran_full(
+            data,
+            spot_row, spot_col,
+            as.integer(max_radius),
+            platform_int,
+            same_spot,
+            paired_genes,
+            all_genes,
+            verbose
+        )
     }
 
-    # Ensure coords is matrix
-    if (is.data.frame(coords)) {
-        coords <- as.matrix(coords[, c("row", "col")])
+    # Set row/column names if available
+    gene_names <- rownames(data)
+    if (!is.null(gene_names)) {
+        if (mode == "paired") {
+            rownames(result) <- gene_names
+            colnames(result) <- gene_names
+        } else {
+            names(result) <- gene_names
+        }
     }
 
-    n_spots <- ncol(data)
-    n_genes <- nrow(data)
+    return(result)
+}
 
-    if (verbose) {
-        cat("Pairwise Moran's I\n")
-        cat(n_spots, "spots,", n_genes, "genes\n")
+#' Compute Moran's I for a Single Gene Pair
+#'
+#' Compute Moran's I between two specific genes.
+#'
+#' @param x Numeric vector of expression values for gene 1.
+#' @param y Numeric vector of expression values for gene 2.
+#' @param W Weight matrix (spots x spots).
+#' @param normalize Whether to z-normalize the input vectors. Default: TRUE.
+#'
+#' @return A single numeric value (Moran's I).
+#'
+#' @export
+moran_I <- function(x, y, W, normalize = TRUE) {
+    if (length(x) != length(y)) {
+        stop("x and y must have the same length")
     }
 
-    # Z-normalize data (gene-wise)
-    if (verbose) cat("Z-normalizing data...\n")
-    Z <- t(scale(t(data)))  # genes x spots, each row normalized
+    if (nrow(W) != length(x) || ncol(W) != length(x)) {
+        stop("W must be a square matrix with dimensions matching x and y")
+    }
 
-    # Create weight matrix for radius 1 (immediate neighbors in Visium)
-    # For Visium, radius = 100 captures the first ring
-    if (verbose) cat("Creating weight matrix...\n")
-    radius <- max_radius * 100  # Convert ring number to distance
-    W <- create_weights_visium(coords, radius = 100)  # First ring neighbors
+    # Z-normalize if requested
+    if (normalize) {
+        x <- (x - mean(x)) / stats::sd(x)
+        y <- (y - mean(y)) / stats::sd(y)
+    }
 
-    if (verbose) cat("Weight sum:", sum(W), "\n")
+    # Compute Moran's I: (x' W y) / sum(W)
+    weight_sum <- sum(W)
+    if (weight_sum == 0) {
+        warning("Weight sum is zero")
+        return(0)
+    }
 
-    # Compute pairwise Moran's I
-    # For each gene pair (i, j): I_ij = z_i' * W * z_j / n
-    if (verbose) cat("Computing pairwise Moran's I...\n")
+    result <- as.numeric(t(x) %*% W %*% y) / weight_sum
+    return(result)
+}
 
-    # Spatial lag matrix: W * Z' (each column is lag of one gene)
-    lag_Z <- as.matrix(W %*% t(Z))  # n_spots x n_genes
+#' Create Spatial Weight Matrix
+#'
+#' Create a weight matrix based on spatial distances between spots.
+#'
+#' @param spot_coords A data frame or matrix with spot coordinates.
+#' @param max_radius Maximum grid radius. Default: 5.
+#' @param platform Platform type: "visium" or "old". Default: "visium".
+#' @param same_spot Whether to include same-spot weights. Default: FALSE.
+#'
+#' @return A list with components:
+#'   \item{W}{The weight matrix (spots x spots)}
+#'   \item{weight_sum}{Sum of all weights}
+#'
+#' @export
+create_weight_matrix <- function(spot_coords,
+                                 max_radius = 5,
+                                 platform = c("visium", "old"),
+                                 same_spot = FALSE) {
 
-    # Moran matrix: Z * lag_Z / n
-    # I[i,j] = sum(Z[i,] * lag_Z[,j]) / n_spots
-    moran_matrix <- Z %*% lag_Z / n_spots
+    platform <- match.arg(platform)
+    platform_int <- if (platform == "visium") 0L else 1L
 
-    rownames(moran_matrix) <- rownames(data)
-    colnames(moran_matrix) <- rownames(data)
+    # Parse spot coordinates
+    if (is.data.frame(spot_coords)) {
+        if ("row" %in% names(spot_coords) && "col" %in% names(spot_coords)) {
+            spot_row <- as.integer(spot_coords$row)
+            spot_col <- as.integer(spot_coords$col)
+        } else {
+            spot_row <- as.integer(spot_coords[[1]])
+            spot_col <- as.integer(spot_coords[[2]])
+        }
+    } else if (is.matrix(spot_coords)) {
+        spot_row <- as.integer(spot_coords[, 1])
+        spot_col <- as.integer(spot_coords[, 2])
+    } else {
+        stop("spot_coords must be a data frame or matrix")
+    }
 
-    if (verbose) cat("Done.\n")
+    # Create distance lookup
+    distance <- cpp_create_distance(as.integer(max_radius), platform_int)
+    if (!same_spot) {
+        distance[1, 1] <- 0
+    }
 
-    return(moran_matrix)
+    # Create weight matrix
+    result <- cpp_create_weight_matrix(
+        spot_row, spot_col, distance,
+        as.integer(max_radius), same_spot
+    )
+
+    return(result)
 }
 
 #' Print Method for VisiumSignature

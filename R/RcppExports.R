@@ -141,6 +141,34 @@ standardize_matrix_cpp <- function(X) {
     .Call(`_sigdiscov_standardize_matrix_cpp`, X)
 }
 
+cpp_create_distance <- function(max_shift, mode) {
+    .Call(`_sigdiscov_cpp_create_distance`, max_shift, mode)
+}
+
+cpp_z_normalize <- function(data) {
+    .Call(`_sigdiscov_cpp_z_normalize`, data)
+}
+
+cpp_create_weight_matrix <- function(spot_row, spot_col, distance, max_shift, flag_samespot) {
+    .Call(`_sigdiscov_cpp_create_weight_matrix`, spot_row, spot_col, distance, max_shift, flag_samespot)
+}
+
+cpp_pairwise_moran <- function(data, W, weight_sum, paired_genes = TRUE, all_genes = TRUE) {
+    .Call(`_sigdiscov_cpp_pairwise_moran`, data, W, weight_sum, paired_genes, all_genes)
+}
+
+cpp_pairwise_moran_sparse <- function(data_sparse, W, weight_sum, paired_genes = TRUE, all_genes = TRUE) {
+    .Call(`_sigdiscov_cpp_pairwise_moran_sparse`, data_sparse, W, weight_sum, paired_genes, all_genes)
+}
+
+cpp_compute_moran_full <- function(data, spot_row, spot_col, max_radius = 5L, platform = 0L, flag_samespot = TRUE, paired_genes = TRUE, all_genes = TRUE, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_compute_moran_full`, data, spot_row, spot_col, max_radius, platform, flag_samespot, paired_genes, all_genes, verbose)
+}
+
+cpp_compute_moran_full_sparse <- function(data_sparse, spot_row, spot_col, max_radius = 5L, platform = 0L, flag_samespot = TRUE, paired_genes = TRUE, all_genes = TRUE, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_compute_moran_full_sparse`, data_sparse, spot_row, spot_col, max_radius, platform, flag_samespot, paired_genes, all_genes, verbose)
+}
+
 #' Permutation Test for Spatial Correlation (Single Gene)
 #'
 #' Tests H0: No spatial association between factor and gene expression.
