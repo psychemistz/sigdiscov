@@ -282,6 +282,9 @@ compute_signature_visium <- function(data,
 #' @param same_spot Whether to consider the same spot in computation. Default: FALSE.
 #' @param mode Computation mode: "paired" (all pairs), "first" (pairs with first gene),
 #'   or "single" (diagonal only). Default: "paired".
+#' @param sparse_W Use sparse weight matrix for memory efficiency. Default: FALSE.
+#'   When TRUE, uses ~99% less memory for the weight matrix but may have
+#'   slightly different performance characteristics.
 #' @param verbose Print progress messages. Default: TRUE.
 #'
 #' @return A matrix of pairwise Moran's I values. For mode="paired", returns a
@@ -294,6 +297,10 @@ compute_signature_visium <- function(data,
 #' Uses Gaussian distance decay weights with sigma=100 for Visium data,
 #' accounting for the hexagonal grid geometry.
 #'
+#' When \code{sparse_W = TRUE}, the weight matrix is stored in sparse format,
+#' reducing memory usage from O(n^2) to O(n * k) where k is the average
+#' number of neighbors per spot. This is particularly useful for large datasets.
+#'
 #' @examples
 #' \dontrun{
 #' # Load VST-transformed data
@@ -304,8 +311,11 @@ compute_signature_visium <- function(data,
 #' # Parse spot coordinates
 #' spot_coords <- parse_spot_names(colnames(data))
 #'
-#' # Compute pairwise Moran's I
+#' # Compute pairwise Moran's I (dense W)
 #' result <- pairwise_moran(data, spot_coords, max_radius = 3)
+#'
+#' # Compute with sparse W (memory efficient)
+#' result <- pairwise_moran(data, spot_coords, max_radius = 3, sparse_W = TRUE)
 #' result[1:5, 1:5]
 #' }
 #'
@@ -316,6 +326,7 @@ pairwise_moran <- function(data,
                            platform = c("visium", "old"),
                            same_spot = FALSE,
                            mode = c("paired", "first", "single"),
+                           sparse_W = FALSE,
                            verbose = TRUE) {
 
     platform <- match.arg(platform)
@@ -351,9 +362,16 @@ pairwise_moran <- function(data,
 
     # Convert to matrix if needed and call C++ function
     if (methods::is(data, "sparseMatrix")) {
-        # Sparse matrix path
-        data <- methods::as(data, "dgCMatrix")
-        result <- cpp_compute_moran_full_sparse(
+        # Sparse expression matrix - convert to dense
+        data <- as.matrix(data)
+    } else {
+        data <- as.matrix(data)
+    }
+
+    # Choose between sparse W and dense W implementations
+    if (sparse_W) {
+        # Sparse weight matrix - memory efficient
+        result <- cpp_compute_moran_full_W_sparse(
             data,
             spot_row, spot_col,
             as.integer(max_radius),
@@ -364,8 +382,7 @@ pairwise_moran <- function(data,
             verbose
         )
     } else {
-        # Dense matrix path
-        data <- as.matrix(data)
+        # Dense weight matrix - original implementation
         result <- cpp_compute_moran_full(
             data,
             spot_row, spot_col,

@@ -169,6 +169,18 @@ cpp_compute_moran_full_sparse <- function(data_sparse, spot_row, spot_col, max_r
     .Call(`_sigdiscov_cpp_compute_moran_full_sparse`, data_sparse, spot_row, spot_col, max_radius, platform, flag_samespot, paired_genes, all_genes, verbose)
 }
 
+cpp_create_weight_matrix_sparse <- function(spot_row, spot_col, distance, max_shift, flag_samespot) {
+    .Call(`_sigdiscov_cpp_create_weight_matrix_sparse`, spot_row, spot_col, distance, max_shift, flag_samespot)
+}
+
+cpp_pairwise_moran_W_sparse <- function(data, W, weight_sum, paired_genes = TRUE, all_genes = TRUE) {
+    .Call(`_sigdiscov_cpp_pairwise_moran_W_sparse`, data, W, weight_sum, paired_genes, all_genes)
+}
+
+cpp_compute_moran_full_W_sparse <- function(data, spot_row, spot_col, max_radius = 5L, platform = 0L, flag_samespot = TRUE, paired_genes = TRUE, all_genes = TRUE, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_compute_moran_full_W_sparse`, data, spot_row, spot_col, max_radius, platform, flag_samespot, paired_genes, all_genes, verbose)
+}
+
 #' Permutation Test for Spatial Correlation (Single Gene)
 #'
 #' Tests H0: No spatial association between factor and gene expression.

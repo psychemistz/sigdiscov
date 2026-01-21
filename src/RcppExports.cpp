@@ -212,6 +212,55 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// cpp_create_weight_matrix_sparse
+List cpp_create_weight_matrix_sparse(IntegerVector spot_row, IntegerVector spot_col, NumericMatrix distance, int max_shift, bool flag_samespot);
+RcppExport SEXP _sigdiscov_cpp_create_weight_matrix_sparse(SEXP spot_rowSEXP, SEXP spot_colSEXP, SEXP distanceSEXP, SEXP max_shiftSEXP, SEXP flag_samespotSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< IntegerVector >::type spot_row(spot_rowSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type spot_col(spot_colSEXP);
+    Rcpp::traits::input_parameter< NumericMatrix >::type distance(distanceSEXP);
+    Rcpp::traits::input_parameter< int >::type max_shift(max_shiftSEXP);
+    Rcpp::traits::input_parameter< bool >::type flag_samespot(flag_samespotSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpp_create_weight_matrix_sparse(spot_row, spot_col, distance, max_shift, flag_samespot));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cpp_pairwise_moran_W_sparse
+arma::mat cpp_pairwise_moran_W_sparse(arma::mat data, arma::sp_mat W, double weight_sum, bool paired_genes, bool all_genes);
+RcppExport SEXP _sigdiscov_cpp_pairwise_moran_W_sparse(SEXP dataSEXP, SEXP WSEXP, SEXP weight_sumSEXP, SEXP paired_genesSEXP, SEXP all_genesSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< arma::sp_mat >::type W(WSEXP);
+    Rcpp::traits::input_parameter< double >::type weight_sum(weight_sumSEXP);
+    Rcpp::traits::input_parameter< bool >::type paired_genes(paired_genesSEXP);
+    Rcpp::traits::input_parameter< bool >::type all_genes(all_genesSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpp_pairwise_moran_W_sparse(data, W, weight_sum, paired_genes, all_genes));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cpp_compute_moran_full_W_sparse
+arma::mat cpp_compute_moran_full_W_sparse(arma::mat data, IntegerVector spot_row, IntegerVector spot_col, int max_radius, int platform, bool flag_samespot, bool paired_genes, bool all_genes, bool verbose);
+RcppExport SEXP _sigdiscov_cpp_compute_moran_full_W_sparse(SEXP dataSEXP, SEXP spot_rowSEXP, SEXP spot_colSEXP, SEXP max_radiusSEXP, SEXP platformSEXP, SEXP flag_samespotSEXP, SEXP paired_genesSEXP, SEXP all_genesSEXP, SEXP verboseSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type spot_row(spot_rowSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type spot_col(spot_colSEXP);
+    Rcpp::traits::input_parameter< int >::type max_radius(max_radiusSEXP);
+    Rcpp::traits::input_parameter< int >::type platform(platformSEXP);
+    Rcpp::traits::input_parameter< bool >::type flag_samespot(flag_samespotSEXP);
+    Rcpp::traits::input_parameter< bool >::type paired_genes(paired_genesSEXP);
+    Rcpp::traits::input_parameter< bool >::type all_genes(all_genesSEXP);
+    Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpp_compute_moran_full_W_sparse(data, spot_row, spot_col, max_radius, platform, flag_samespot, paired_genes, all_genes, verbose));
+    return rcpp_result_gen;
+END_RCPP
+}
 // permutation_test_cpp
 List permutation_test_cpp(const arma::vec& z_f, const arma::vec& lag_g, const std::string& metric, int n_perm);
 RcppExport SEXP _sigdiscov_permutation_test_cpp(SEXP z_fSEXP, SEXP lag_gSEXP, SEXP metricSEXP, SEXP n_permSEXP) {
@@ -337,6 +386,9 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sigdiscov_cpp_pairwise_moran_sparse", (DL_FUNC) &_sigdiscov_cpp_pairwise_moran_sparse, 5},
     {"_sigdiscov_cpp_compute_moran_full", (DL_FUNC) &_sigdiscov_cpp_compute_moran_full, 9},
     {"_sigdiscov_cpp_compute_moran_full_sparse", (DL_FUNC) &_sigdiscov_cpp_compute_moran_full_sparse, 9},
+    {"_sigdiscov_cpp_create_weight_matrix_sparse", (DL_FUNC) &_sigdiscov_cpp_create_weight_matrix_sparse, 5},
+    {"_sigdiscov_cpp_pairwise_moran_W_sparse", (DL_FUNC) &_sigdiscov_cpp_pairwise_moran_W_sparse, 5},
+    {"_sigdiscov_cpp_compute_moran_full_W_sparse", (DL_FUNC) &_sigdiscov_cpp_compute_moran_full_W_sparse, 9},
     {"_sigdiscov_permutation_test_cpp", (DL_FUNC) &_sigdiscov_permutation_test_cpp, 4},
     {"_sigdiscov_batch_permutation_test_cpp", (DL_FUNC) &_sigdiscov_batch_permutation_test_cpp, 5},
     {"_sigdiscov_sparse_row_normalize_cpp", (DL_FUNC) &_sigdiscov_sparse_row_normalize_cpp, 1},

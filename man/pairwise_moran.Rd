@@ -11,6 +11,7 @@ pairwise_moran(
   platform = c("visium", "old"),
   same_spot = FALSE,
   mode = c("paired", "first", "single"),
+  sparse_W = FALSE,
   verbose = TRUE
 )
 }
@@ -30,6 +31,10 @@ columns named 'row' and 'col', or be a 2-column matrix.}
 \item{mode}{Computation mode: "paired" (all pairs), "first" (pairs with first gene),
 or "single" (diagonal only). Default: "paired".}
 
+\item{sparse_W}{Use sparse weight matrix for memory efficiency. Default: FALSE.
+When TRUE, uses ~99\% less memory for the weight matrix but may have
+slightly different performance characteristics.}
+
 \item{verbose}{Print progress messages. Default: TRUE.}
 }
 \value{
@@ -46,6 +51,10 @@ entry (i,j) represents the spatial correlation between gene i and gene j.
 
 Uses Gaussian distance decay weights with sigma=100 for Visium data,
 accounting for the hexagonal grid geometry.
+
+When \code{sparse_W = TRUE}, the weight matrix is stored in sparse format,
+reducing memory usage from O(n^2) to O(n * k) where k is the average
+number of neighbors per spot. This is particularly useful for large datasets.
 }
 \examples{
 \dontrun{
@@ -57,8 +66,11 @@ data <- as.matrix(data)
 # Parse spot coordinates
 spot_coords <- parse_spot_names(colnames(data))
 
-# Compute pairwise Moran's I
+# Compute pairwise Moran's I (dense W)
 result <- pairwise_moran(data, spot_coords, max_radius = 3)
+
+# Compute with sparse W (memory efficient)
+result <- pairwise_moran(data, spot_coords, max_radius = 3, sparse_W = TRUE)
 result[1:5, 1:5]
 }
 
