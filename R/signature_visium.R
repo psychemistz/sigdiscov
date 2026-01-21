@@ -277,7 +277,7 @@ compute_signature_visium <- function(data,
 #' @param coords Data frame or matrix. Spot coordinates with row/col columns.
 #' @param max_radius Integer. Maximum neighbor ring (default: 3).
 #' @param platform Character. Platform type (default: "visium").
-#' @param same_spot Logical. Include same-spot comparisons (default: TRUE).
+#' @param same_spot Logical. Include same-spot comparisons (default: FALSE).
 #' @param mode Character. Computation mode: "paired" (default).
 #' @param verbose Logical. Print progress (default: TRUE).
 #'
@@ -307,7 +307,7 @@ compute_signature_visium <- function(data,
 #'
 #' @export
 pairwise_moran <- function(data, coords, max_radius = 3,
-                           platform = "visium", same_spot = TRUE,
+                           platform = "visium", same_spot = FALSE,
                            mode = "paired", verbose = TRUE) {
 
     # Ensure data is matrix

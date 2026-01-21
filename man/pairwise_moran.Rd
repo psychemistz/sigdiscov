@@ -9,7 +9,7 @@ pairwise_moran(
   coords,
   max_radius = 3,
   platform = "visium",
-  same_spot = TRUE,
+  same_spot = FALSE,
   mode = "paired",
   verbose = TRUE
 )
@@ -23,7 +23,7 @@ pairwise_moran(
 
 \item{platform}{Character. Platform type (default: "visium").}
 
-\item{same_spot}{Logical. Include same-spot comparisons (default: TRUE).}
+\item{same_spot}{Logical. Include same-spot comparisons (default: FALSE).}
 
 \item{mode}{Character. Computation mode: "paired" (default).}
 

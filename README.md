@@ -175,4 +175,4 @@ MIT
 
 ## Citation
 
-Park S, et al. sigdiscov: Spatial Signature Discovery for Spatial Transcriptomics. https://github.com/psychemistz/sigdiscov
+Beibei Ru, Lanqi Gong, Emily Yang, Seongyong Park, George Zaki, Kenneth Aldape, Lalage Wakefield, Peng Jiang. Inference of secreted protein activities in intercellular communication. [Link](https://github.com/data2intelligence/SecAct)
