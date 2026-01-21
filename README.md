@@ -160,13 +160,39 @@ Distance-dependent signature: `delta_I = sign * (I_max - I_min)`
 
 ## Weight Matrices
 
-### Visium (Binary)
-All spots within radius get equal weight (1/n_neighbors).
+### Visium (Gaussian Distance Decay)
+Gaussian distance decay for pairwise Moran's I computation:
+```
+w_ij = exp(-d_ij^2 / (2 * sigma^2))    # sigma = 100
+```
+
+Sparse weight matrix is used by default for memory efficiency.
 
 ### Single-Cell (Gaussian)
 Gaussian kernel with `sigma = radius / 3`:
 ```
 w_ij = exp(-d_ij^2 / (2 * sigma^2))
+```
+
+## Benchmark: Dense vs Sparse Weight Matrix
+
+Tested on real Visium datasets with `max_radius = 3`:
+
+| Dataset | Genes | Spots | Dense W Time | Sparse W Time | Dense W Memory | Sparse W Memory |
+|---------|-------|-------|--------------|---------------|----------------|-----------------|
+| 1_vst.tsv | 19,729 | 3,813 | 11.76s | 14.43s | 111 MB | 1.5 MB |
+| 2_vst.tsv | 19,419 | 4,727 | 15.23s | 15.89s | 171 MB | 1.8 MB |
+| 3_vst.tsv | 15,931 | 2,518 | 6.09s | 5.67s | 48 MB | 0.9 MB |
+
+**Key findings:**
+- **Identical outputs** (max difference < 1e-16)
+- **~99% memory reduction** for weight matrix storage
+- **Similar computation speed** (within 5-20%)
+- Sparse W is default (`sparse_W = TRUE`)
+
+Use `sparse_W = FALSE` for slightly faster computation when memory is not a concern:
+```r
+result <- pairwise_moran(data, spot_coords, sparse_W = FALSE)
 ```
 
 ## License
