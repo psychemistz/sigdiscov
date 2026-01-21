@@ -2,300 +2,177 @@
 
 **Spatial Signature Discovery for Spatial Transcriptomics**
 
-An R package for computing spatial correlation metrics between genes in spatial transcriptomics data, including pairwise Moran's I and signed delta I signatures. Uses optimized BLAS matrix operations via RcppArmadillo for high-performance computation.
+R package for computing spatial correlation metrics in spatial transcriptomics data. Supports both Visium (10x Genomics) and single-cell resolution platforms (CosMx, Xenium, MERFISH).
 
 ## Features
 
-- Fast pairwise Moran's I computation using matrix multiplication (BLAS)
-- **Signed Delta I signatures** for identifying responsive genes vs. constitutive expression
-- **Four delta I types**: ring/circular weights x Moran's I/I_ND correlation
-- Support for 10x Visium spatial transcriptomics data
-- Built-in VST normalization via sctransform
-- Sparse matrix support for memory efficiency
-- Complete pipeline from raw Space Ranger output to results
+- **Visium support**: Binary weights for grid-based spots (~100um spacing)
+- **Single-cell support**: Gaussian weights for continuous coordinates
+- **Metrics**: Bivariate Moran's I and I_ND (cosine similarity)
+- **Delta I**: Signed distance-dependent correlation signatures
+- **Batch computation**: All cell type pairs with HDF5 output
+- **High performance**: RcppArmadillo matrix operations
 
 ## Installation
 
-### From GitHub
-
 ```r
-# Install devtools if not already installed
-install.packages("devtools")
-
-# Install sigdiscov
+# Install from GitHub
 devtools::install_github("psychemistz/sigdiscov")
 ```
 
 ### Dependencies
 
-**Required:**
-- R (>= 3.5.0)
-- Rcpp (>= 1.0.0)
-- RcppArmadillo
-- Matrix
+**Required:** R (>= 4.0.0), Rcpp, RcppArmadillo, Matrix
 
-**Optional (for VST normalization):**
-- sctransform
-
-```r
-# Install optional dependency for VST
-install.packages("sctransform")
-```
+**Optional:** Seurat (data loading), rhdf5 (HDF5 I/O)
 
 ## Quick Start
 
-### Option 1: Full Pipeline (Recommended)
-
-Run the complete analysis from raw Space Ranger output:
+### Visium: From VST File
 
 ```r
 library(sigdiscov)
 
-# Run full pipeline
-result <- run_pipeline("path/to/spaceranger_output")
+# Load VST-transformed data
+data <- read.table("vst.tsv", header=TRUE, row.names=1)
+colnames(data) <- gsub("X", "", colnames(data))
+data <- as.matrix(data)
 
-# Access results
-moran_matrix <- result$moran
-gene_names <- result$gene_names
+# Parse spot coordinates from column names (format: "ROW_COL")
+spot_coords <- parse_spot_names(colnames(data))
+
+# Compute pairwise Moran's I matrix
+result <- pairwise_moran(data, spot_coords, max_radius = 3)
+result[1:5, 1:5]
 ```
 
-### Option 2: Step-by-Step Analysis
-
-For more control over each step:
+### Visium: Signature Analysis
 
 ```r
 library(sigdiscov)
 
-# Step 1: Load Visium data from Space Ranger output
-visium <- load_visium_data("path/to/spaceranger_output")
-visium <- filter_in_tissue(visium)
+# Load from Space Ranger output
+data <- load_data_visium("path/to/spaceranger/outs")
 
-# Step 2: VST normalization (requires sctransform)
-data_vst <- vst_transform(visium$counts, min_cells = 5)
-
-# Step 3: Get spot coordinates
-spot_coords <- get_spot_coords(visium)
-
-# Step 4: Compute pairwise Moran's I
-result <- pairwise_moran(
-  data_vst,
-  spot_coords,
-  max_radius = 5,
-  platform = "visium",
-  same_spot = FALSE
+# Compute spatial signature for a factor gene
+sig <- compute_signature_visium(
+    data,
+    factor_gene = "IL1B",
+    radii = seq(100, 500, 100),
+    metric = "ind",
+    mode = "directional"
 )
 
-# Save results
-save_moran_result(result, "output.tsv")
+# Top correlated genes
+head(sig[order(-sig$ind_r1_val), ], 20)
 ```
 
-## Signed Delta I Signatures
-
-Delta I captures distance-dependent spatial correlation patterns. A gene pair showing high correlation at short distances but low correlation at long distances (decay pattern) indicates a true responsive relationship, while flat patterns suggest constitutive expression.
-
-### Four Delta I Types
-
-| Delta Type | Weight | Correlation | Description |
-|------------|--------|-------------|-------------|
-| `delta_i_ring_moran` | Ring | Moran's I | Neighbors in distance band [r_inner, r_outer) |
-| `delta_i_cir_moran` | Circular | Moran's I | All neighbors in cumulative disk [0, r_outer) |
-| `delta_i_ring_ind` | Ring | I_ND | Ring weights with cosine similarity |
-| `delta_i_cir_ind` | Circular | I_ND | Circular weights with cosine similarity |
-
-### Unified Interface (Recommended)
-
-Compute delta I matrix for any combination of weight type and correlation type:
+### Single-Cell: CosMx/Xenium/MERFISH
 
 ```r
 library(sigdiscov)
 
-# Load and prepare data
-visium <- load_visium_data("path/to/spaceranger_output")
-visium <- filter_in_tissue(visium)
-expr_vst <- vst_transform(visium$counts)
-coords <- get_spot_coords(visium)
+# Load single-cell data
+data <- load_data_cosmx("path/to/cosmx")
+# or: data <- load_data_anndata("data.h5ad")
 
-# Compute ring-based Moran's I delta matrix (default)
-result_ring_moran <- compute_delta_I_matrix_unified(
-  expr_matrix = expr_vst,
-  spot_coords = coords,
-  weight_type = "ring",           # "ring" or "circular"
-  correlation_type = "moran",     # "moran" or "ind"
-  radii = seq(150, 650, 100),     # Distance bins (Visium ~100 unit spacing)
-  coord_scale = 1,                # Scale factor for coordinates
-  chunk_size = 1000               # Memory-efficient chunking
-)
-
-# Access the matrix (rows = targets, cols = factors)
-delta_mat <- result_ring_moran$delta_I_signed
-
-# Compute circular I_ND delta matrix
-result_cir_ind <- compute_delta_I_matrix_unified(
-  expr_matrix = expr_vst,
-  spot_coords = coords,
-  weight_type = "circular",
-  correlation_type = "ind"
+# Compute signature for cell type pair
+sig <- compute_signature_sc(
+    data,
+    factor_gene = "TGFB1",
+    sender_celltype = "Macrophage",
+    receiver_celltype = "Fibroblast",
+    radii = seq(10, 100, 10)
 )
 ```
 
-### Compute All 4 Types for Specific Factors
-
-For focused analysis on specific factor genes:
+### Batch Computation (All Cell Type Pairs)
 
 ```r
-# Compute all 4 delta types for IFNG and TGFB1
-results <- compute_four_deltas(
-  expr_matrix = expr_vst,
-  spot_coords = coords,
-  factor_genes = c("IFNG", "TGFB1"),
-  radii = seq(150, 650, 100)
+# Compute for all cell type pairs at multiple radii
+result <- compute_batch_sc(
+    data,
+    factor_genes = c("IL1B", "TGFB1", "TNF"),
+    radii = seq(10, 100, 10)
 )
 
-# Access results for IFNG
-ifng_deltas <- results$IFNG
-head(ifng_deltas)
-#   gene      delta_i_ring_moran  delta_i_cir_moran  delta_i_ring_ind  delta_i_cir_ind
-# 1 GeneA     0.0234              0.0198             0.0312            0.0156
-# ...
-
-# Compare correlations between delta types
-cor(ifng_deltas[, c("delta_i_ring_moran", "delta_i_cir_moran",
-                     "delta_i_ring_ind", "delta_i_cir_ind")])
+# Save to HDF5 for Python
+save_hdf5_sc(result, "signatures.h5")
 ```
 
-### Single Factor Analysis
+## Main Functions
 
-For detailed analysis of one factor:
+### Data Loading
 
-```r
-# Compute signatures for all genes against IL1B
-signatures <- compute_signed_delta_I(
-  expr_matrix = expr_vst,
-  spot_coords = coords,
-  factor_gene = "IL1B",
-  mode = "bivariate",  # or "directional" for I_ND
-  radii = seq(100, 600, 100)
-)
+| Function | Description |
+|----------|-------------|
+| `load_data_visium()` | Load Visium from Space Ranger output |
+| `load_data_cosmx()` | Load CosMx data |
+| `load_data_anndata()` | Load from AnnData H5AD file |
+| `as_data_visium()` | Convert Seurat object |
+| `parse_spot_names()` | Parse "ROW_COL" spot names to coordinates |
 
-# View top responders (decay pattern = positive delta_I_signed)
-head(signatures[order(-signatures$delta_I_signed), ])
+### Visium Analysis
 
-# View avoiders (increase pattern = negative delta_I_signed)
-head(signatures[order(signatures$delta_I_signed), ])
+| Function | Description |
+|----------|-------------|
+| `compute_signature_visium()` | Main Visium analysis |
+| `pairwise_moran()` | Pairwise Moran's I matrix |
+| `create_weights_visium()` | Binary weight matrix |
+| `create_ring_weights_visium()` | Ring (annular) weights |
+
+### Single-Cell Analysis
+
+| Function | Description |
+|----------|-------------|
+| `compute_signature_sc()` | Main single-cell analysis |
+| `compute_batch_sc()` | Batch all cell type pairs |
+| `create_weights_sc()` | Gaussian weight matrix (sigma = radius/3) |
+| `save_hdf5_sc()` / `load_hdf5_sc()` | HDF5 I/O |
+
+### Core Metrics
+
+| Function | Description |
+|----------|-------------|
+| `compute_moran_from_lag()` | Bivariate Moran's I |
+| `compute_ind_from_lag()` | I_ND (cosine similarity) |
+| `compute_delta_i()` | Signed delta I from curve |
+| `batch_permutation_test()` | Significance testing |
+
+## Metrics
+
+### Moran's I
+Classic spatial autocorrelation: `I = z_f' * W * z_g / n`
+
+### I_ND (Normalized Directional)
+Cosine similarity between factor and spatial lag: `I_ND = z_f' * lag_g / (||z_f|| * ||lag_g||)`
+
+Bounded [-1, 1], interpretable as correlation.
+
+### Delta I
+Distance-dependent signature: `delta_I = sign * (I_max - I_min)`
+
+| Pattern | delta_I | Interpretation |
+|---------|---------|----------------|
+| Decay | > 0 | Paracrine signaling (high near, low far) |
+| Increase | < 0 | Avoidance pattern |
+| Flat | ~ 0 | Constitutive expression |
+
+## Weight Matrices
+
+### Visium (Binary)
+All spots within radius get equal weight (1/n_neighbors).
+
+### Single-Cell (Gaussian)
+Gaussian kernel with `sigma = radius / 3`:
 ```
-
-### Visualizing I(r) Curves
-
-```r
-# Get detailed curve for a gene pair
-curve <- get_moran_curve(
-  expr_matrix = expr_vst,
-  spot_coords = coords,
-  factor_gene = "IL1B",
-  target_gene = "COL1A1",
-  mode = "bivariate"
-)
-
-# Plot the curve
-plot_moran_curve(curve)
-
-# Manual plotting
-plot(curve$radii, curve$I_raw, type = "p", pch = 19,
-     xlab = "Distance", ylab = "Moran's I",
-     main = paste(curve$factor_gene, "->", curve$target_gene))
-lines(curve$radii, curve$I_smooth, col = "blue", lwd = 2)
-abline(h = 0, lty = 2)
-legend("topright",
-       legend = paste("delta_I_signed =", round(curve$delta_I_signed, 4)))
+w_ij = exp(-d_ij^2 / (2 * sigma^2))
 ```
-
-## Functions
-
-### Delta I Computation
-
-| Function | Description |
-|----------|-------------|
-| `compute_delta_I_matrix_unified()` | **Unified interface** for computing delta I matrix with any weight/correlation type |
-| `compute_four_deltas()` | Compute all 4 delta types for specific factor genes |
-| `compute_signed_delta_I()` | Compute delta I for one factor against all genes |
-| `compute_delta_I_matrix()` | Legacy interface for full delta I matrix |
-
-### Curve Analysis
-
-| Function | Description |
-|----------|-------------|
-| `get_moran_curve()` | Get full I(r) curve for a gene pair |
-| `plot_moran_curve()` | Visualize I(r) curve with smoothing |
-
-### Pairwise Moran's I
-
-| Function | Description |
-|----------|-------------|
-| `pairwise_moran()` | Compute pairwise Moran's I between all genes |
-| `moran_I()` | Compute Moran's I for a single gene pair |
-| `create_weight_matrix()` | Create spatial weight matrix |
-
-### Data Loading & Preprocessing
-
-| Function | Description |
-|----------|-------------|
-| `load_visium_data()` | Load Visium data from Space Ranger output |
-| `filter_in_tissue()` | Filter to in-tissue spots only |
-| `get_spot_coords()` | Extract spot coordinates |
-| `vst_transform()` | Apply VST normalization |
-| `run_pipeline()` | Complete pipeline: load, preprocess, compute |
-| `parse_spot_names()` | Parse "ROWxCOL" format spot names |
-
-### I/O
-
-| Function | Description |
-|----------|-------------|
-| `save_moran_result()` | Save results in lower triangular format |
-| `load_moran_result()` | Load results from file |
-
-## Method Details
-
-### Weight Types
-
-- **Ring weights**: Neighbors within distance band [r_inner, r_outer). Captures distance-SPECIFIC spatial structure at each radius.
-- **Circular weights**: ALL neighbors within cumulative disk [0, r_outer). Provides distance-CUMULATIVE spatial structure.
-
-### Correlation Types
-
-- **Moran's I**: Bivariate spatial autocorrelation. `I = z_f' * W * z_g / n`
-- **I_ND**: Directional cosine similarity. `I_ND = dot(z_f, W*z_g) / (||z_f|| * ||W*z_g||)`
-
-### Delta I Computation
-
-1. Compute I(r) at each distance radius
-2. Smooth curve with Savitzky-Golay filter (removes noise, preserves trend)
-3. Compute: `delta_I_signed = sign * (I_max - I_min)`
-   - sign = +1 if I_short > I_long (decay pattern = RESPONDER)
-   - sign = -1 if I_short < I_long (increase pattern = AVOIDANCE)
-
-### Interpretation
-
-| Pattern | delta_I_signed | Interpretation |
-|---------|----------------|----------------|
-| Decay | > 0 | High correlation nearby, low far away -> TRUE RESPONDER |
-| Increase | < 0 | Low correlation nearby, high far away -> AVOIDANCE |
-| Flat | ~ 0 | Constant correlation -> CONSTITUTIVE EXPRESSION |
-
-## Performance
-
-The package uses BLAS matrix operations for efficiency:
-
-- **Algorithm**: Reformulated as `I = Z * W * Z^T / n` using matrix multiplication
-- **Optimization**: Weight matrices precomputed once, reused for all gene pairs
-- **Memory**: Chunked processing for large gene sets (>5000 genes)
-- **Typical performance**: 19,729 genes x 3,813 spots completes in ~2 minutes (R) or ~15 seconds (C++ standalone)
-
-## Citation
-
-If you use this package, please cite:
-
-Beibei Ru, Lanqi Gong, Emily Yang, Seongyong Park, George Zaki, Kenneth Aldape, Lalage Wakefield, Peng Jiang. Inference of secreted protein activities in intercellular communication. [Link](https://github.com/data2intelligence/SecAct)
 
 ## License
 
-MIT License
+MIT
+
+## Citation
+
+Park S, et al. sigdiscov: Spatial Signature Discovery for Spatial Transcriptomics. https://github.com/psychemistz/sigdiscov
