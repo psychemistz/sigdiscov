@@ -190,7 +190,7 @@ Tested on real Visium datasets with `max_radius = 3`:
 - **Similar computation speed** (within 5-20%)
 - Sparse W is default (`sparse_W = TRUE`)
 
-Use `sparse_W = FALSE` for slightly faster computation when memory is not a concern:
+For comparison, use `sparse_W = FALSE` for dense weight matrix:
 ```r
 result <- pairwise_moran(data, spot_coords, sparse_W = FALSE)
 ```
