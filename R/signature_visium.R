@@ -13,6 +13,8 @@
 #'   (default: "both").
 #' @param mode Character. Analysis mode: "bivariate" (all spots) or
 #'   "directional" (sender/receiver split) (default: "directional").
+#' @param weight_type Character. Weight type: "gaussian" (default, matches
+#'   pairwise_moran) or "binary" (legacy row-normalized weights).
 #' @param sender_percentile Numeric. Percentile threshold for sender selection
 #'   (default: 75, meaning top 25 percent of expressors become senders).
 #' @param compute_delta Logical. Compute signed delta I (default: TRUE).
@@ -78,6 +80,7 @@ compute_signature_visium <- function(data,
                                       radii = seq(100, 500, 100),
                                       metric = c("both", "moran", "ind"),
                                       mode = c("directional", "bivariate"),
+                                      weight_type = c("gaussian", "binary"),
                                       sender_percentile = 75,
                                       compute_delta = TRUE,
                                       n_perm = 0,
@@ -86,6 +89,7 @@ compute_signature_visium <- function(data,
 
     metric <- match.arg(metric)
     mode <- match.arg(mode)
+    weight_type <- match.arg(weight_type)
 
     # Validate data
     if (!inherits(data, "VisiumData") && !is.list(data)) {
@@ -170,11 +174,16 @@ compute_signature_visium <- function(data,
 
         # Build weight matrix
         if (mode == "bivariate") {
-            W <- create_weights_visium(data$coords, radius)
+            W_result <- create_weights_visium(data$coords, radius,
+                                               type = weight_type)
+            W <- W_result$W
+            weight_sum <- W_result$weight_sum
         } else {
+            # Directional mode uses binary weights (sender->receiver)
             W <- create_directional_weights_visium(
                 sender_coords, receiver_coords, radius
             )
+            weight_sum <- sum(W)
         }
 
         # Compute spatial lag for all genes at once: W * Z_g (transpose for genes in columns)
@@ -232,7 +241,9 @@ compute_signature_visium <- function(data,
 
         # Build weight matrix for first radius
         if (mode == "bivariate") {
-            W1 <- create_weights_visium(data$coords, radii[1])
+            W1_result <- create_weights_visium(data$coords, radii[1],
+                                                type = weight_type)
+            W1 <- W1_result$W
         } else {
             W1 <- create_directional_weights_visium(
                 sender_coords, receiver_coords, radii[1]

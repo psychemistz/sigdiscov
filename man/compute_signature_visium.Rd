@@ -10,6 +10,7 @@ compute_signature_visium(
   radii = seq(100, 500, 100),
   metric = c("both", "moran", "ind"),
   mode = c("directional", "bivariate"),
+  weight_type = c("gaussian", "binary"),
   sender_percentile = 75,
   compute_delta = TRUE,
   n_perm = 0,
@@ -31,6 +32,9 @@ compute_signature_visium(
 
 \item{mode}{Character. Analysis mode: "bivariate" (all spots) or
 "directional" (sender/receiver split) (default: "directional").}
+
+\item{weight_type}{Character. Weight type: "gaussian" (default, matches
+pairwise_moran) or "binary" (legacy row-normalized weights).}
 
 \item{sender_percentile}{Numeric. Percentile threshold for sender selection
 (default: 75, meaning top 25 percent of expressors become senders).}

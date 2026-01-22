@@ -4,13 +4,18 @@
 #' Supports Visium (10x Genomics) and single-cell resolution platforms
 #' (CosMx, Xenium, MERFISH).
 #'
+#' @section Preprocessing:
+#' \itemize{
+#'   \item \code{\link{normalize_data}}: Normalize raw counts (lognorm, logcpm, vst)
+#'   \item \code{\link{standardize_matrix}}: Gene-wise z-score normalization
+#' }
+#'
 #' @section Core Functions:
 #' \itemize{
 #'   \item \code{\link{compute_moran_from_lag}}: Moran's I from spatial lag
 #'   \item \code{\link{compute_ind_from_lag}}: I_ND (cosine similarity)
 #'   \item \code{\link{compute_delta_i}}: Signed Delta I
 #'   \item \code{\link{batch_permutation_test}}: Permutation testing
-#'   \item \code{\link{standardize}}, \code{\link{standardize_matrix}}: Normalization
 #' }
 #'
 #' @section Visium Functions:

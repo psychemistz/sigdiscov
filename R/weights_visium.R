@@ -1,37 +1,97 @@
-#' Create Binary Weight Matrix for Visium
+#' Create Weight Matrix for Visium
 #'
-#' Creates a row-normalized binary spatial weight matrix where all spots
-#' within the specified radius receive equal weight.
+#' Creates a spatial weight matrix for Visium data. Supports both Gaussian
+#' distance decay weights (consistent with pairwise_moran) and binary weights.
 #'
-#' @param coords Numeric matrix. Spot coordinates (n x 2).
-#' @param radius Numeric. Distance threshold for neighbor definition.
+#' @param coords Spot coordinates. For type="gaussian", should be a data frame
+#'   with 'row' and 'col' columns (grid coordinates). For type="binary", can be
+#'   any n x 2 matrix of physical coordinates.
+#' @param radius Numeric. For type="binary", distance threshold in coordinate units.
+#'   For type="gaussian", converted to max_radius in grid units (radius / 100).
+#' @param type Character. Weight type: "gaussian" (default) or "binary".
 #' @param include_self Logical. Include self-connections (default: FALSE).
+#' @param platform Character. Platform type for gaussian weights: "visium" (default)
+#'   or "old". Only used when type = "gaussian".
 #'
-#' @return Sparse weight matrix (n x n), row-normalized so each row sums to 1.
+#' @return A list with components:
+#'   \item{W}{Sparse weight matrix (n x n)}
+#'   \item{weight_sum}{Sum of all weights (for normalization)}
 #'
 #' @details
-#' For Visium data, binary weights are preferred because:
-#' \itemize{
-#'   \item Grid structure has regular spacing (~100 um center-to-center)
-#'   \item Spot density is relatively low (~4K spots per sample)
-#'   \item Distance-decay effects are less pronounced at this resolution
-#' }
+#' Two weight types are supported:
 #'
-#' The weight formula is:
-#' \deqn{w_{ij} = \frac{1}{n_i} \text{ if } d(i,j) \leq r, \text{ else } 0}
+#' **Gaussian (default)**: Uses the same grid-based Gaussian distance decay as
+#' \code{pairwise_moran()}. Requires grid coordinates (row, col integers).
+#' Uses: \eqn{w_{ij} = exp(-d_{ij}^2 / (2 * 100^2))} where d is computed using
+#' Visium hexagonal grid geometry. This is recommended for consistency with
+#' pairwise Moran's I analysis.
+#'
+#' **Binary**: All spots within radius receive equal weight (row-normalized).
+#' \eqn{w_{ij} = 1/n_i} if \eqn{d(i,j) \le r}, else 0.
 #'
 #' @examples
-#' # Create simple coordinates
-#' coords <- matrix(c(0, 0, 100, 0, 0, 100, 100, 100), ncol = 2, byrow = TRUE)
-#' W <- create_weights_visium(coords, radius = 150)
-#' Matrix::rowSums(W)  # Each row sums to 1
+#' \dontrun{
+#' # Parse grid coordinates from spot names
+#' spot_coords <- parse_spot_names(colnames(data))
 #'
-#' @seealso \code{\link{create_ring_weights_visium}},
+#' # Gaussian weights (default, matches pairwise_moran)
+#' W_result <- create_weights_visium(spot_coords, radius = 300, type = "gaussian")
+#'
+#' # Binary weights (legacy)
+#' W_result <- create_weights_visium(spot_coords, radius = 300, type = "binary")
+#' }
+#'
+#' @seealso \code{\link{pairwise_moran}}, \code{\link{create_ring_weights_visium}},
 #'   \code{\link{create_directional_weights_visium}}
 #'
 #' @export
-create_weights_visium <- function(coords, radius, include_self = FALSE) {
-    create_binary_weights_cpp(as.matrix(coords), radius, include_self)
+create_weights_visium <- function(coords, radius, type = c("gaussian", "binary"),
+                                   include_self = FALSE, platform = c("visium", "old")) {
+    type <- match.arg(type)
+    platform <- match.arg(platform)
+
+    if (type == "binary") {
+        # Legacy binary weights (row-normalized)
+        W <- create_binary_weights_cpp(as.matrix(coords), radius, include_self)
+        weight_sum <- sum(W)
+        return(list(W = W, weight_sum = weight_sum))
+    }
+
+    # Gaussian distance decay weights (same as pairwise_moran)
+    # Parse coordinates - need row/col integers for grid-based computation
+    if (is.data.frame(coords)) {
+        if ("row" %in% names(coords) && "col" %in% names(coords)) {
+            spot_row <- as.integer(coords$row)
+            spot_col <- as.integer(coords$col)
+        } else {
+            spot_row <- as.integer(coords[[1]])
+            spot_col <- as.integer(coords[[2]])
+        }
+    } else if (is.matrix(coords)) {
+        spot_row <- as.integer(coords[, 1])
+        spot_col <- as.integer(coords[, 2])
+    } else {
+        stop("coords must be a data frame or matrix with row/col coordinates")
+    }
+
+    # Convert radius to max_radius (grid units)
+    # Visium center-to-center distance is ~100 um
+    max_radius <- as.integer(ceiling(radius / 100))
+    if (max_radius < 1) max_radius <- 1L
+
+    # Use the same functions as pairwise_moran
+    platform_int <- if (platform == "visium") 0L else 1L
+    distance <- cpp_create_distance(max_radius, platform_int)
+
+    if (!include_self) {
+        distance[1, 1] <- 0
+    }
+
+    # Create weight matrix (same as pairwise_moran uses internally)
+    W_result <- cpp_create_weight_matrix(spot_row, spot_col, distance,
+                                          max_radius, include_self)
+
+    return(list(W = W_result$W, weight_sum = W_result$weight_sum))
 }
 
 #' Create Ring Weight Matrix for Visium
