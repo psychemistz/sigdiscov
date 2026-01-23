@@ -427,3 +427,153 @@ arma::mat cpp_compute_moran_full_W_sparse(
 
     return result;
 }
+
+// =============================================================================
+// CUSTOM WEIGHT MATRIX FUNCTIONS
+// For use with user-provided or circular RBF weight matrices
+// =============================================================================
+
+//' Pairwise Moran's I with Custom Dense Weight Matrix
+//'
+//' Computes pairwise Moran's I using a user-provided dense weight matrix.
+//' Uses population SD (N) for z-normalization to match SpaCET.
+//'
+//' @param data Gene expression matrix (genes x spots), raw values
+//' @param W Dense weight matrix (spots x spots)
+//' @param mode Computation mode: "paired" (0), "single" (1), "first" (2)
+//' @param verbose Print progress messages
+//'
+//' @return List with moran matrix, gene_names placeholder, and weight_sum
+//'
+//' @export
+// [[Rcpp::export]]
+List cpp_pairwise_moran_custom(
+    arma::mat data,
+    arma::mat W,
+    int mode = 0,
+    bool verbose = true) {
+
+    int n_genes = data.n_rows;
+    int n_spots = data.n_cols;
+
+    if (verbose) {
+        Rcout << "Pairwise Moran's I (Custom Weights)" << std::endl;
+        Rcout << n_spots << " spots, " << n_genes << " genes" << std::endl;
+    }
+
+    // Compute weight sum
+    double weight_sum = arma::accu(W);
+    if (weight_sum == 0.0) {
+        stop("Weight matrix has no non-zero weights");
+    }
+
+    if (verbose) Rcout << "Weight sum (S0): " << weight_sum << std::endl;
+
+    // Z-normalize using population SD
+    if (verbose) Rcout << "Z-normalizing data..." << std::endl;
+    data = cpp_z_normalize(data);
+
+    // Compute Moran's I: M = Z * W * Z^T / S0
+    if (verbose) Rcout << "Computing pairwise Moran's I..." << std::endl;
+
+    arma::mat result;
+    if (mode == 1) {
+        // Single mode: diagonal only
+        arma::mat temp = data * W;
+        arma::vec diag_result(n_genes);
+        for (int i = 0; i < n_genes; i++) {
+            diag_result(i) = arma::dot(temp.row(i), data.row(i)) / weight_sum;
+        }
+        result = arma::mat(diag_result);
+    } else if (mode == 2) {
+        // First mode: pairs with first gene only
+        arma::mat temp = data * W;
+        result = (temp * data.row(0).t()) / weight_sum;
+    } else {
+        // Paired mode: full matrix
+        arma::mat temp = data * W;
+        result = (temp * data.t()) / weight_sum;
+    }
+
+    if (verbose) Rcout << "Done." << std::endl;
+
+    return List::create(
+        Named("moran") = result,
+        Named("weight_sum") = weight_sum
+    );
+}
+
+//' Pairwise Moran's I with Custom Sparse Weight Matrix
+//'
+//' Computes pairwise Moran's I using a user-provided sparse weight matrix.
+//' Uses population SD (N) for z-normalization to match SpaCET.
+//' More memory efficient than dense version for large datasets.
+//'
+//' @param data Gene expression matrix (genes x spots), raw values
+//' @param W Sparse weight matrix (spots x spots)
+//' @param mode Computation mode: "paired" (0), "single" (1), "first" (2)
+//' @param verbose Print progress messages
+//'
+//' @return List with moran matrix, gene_names placeholder, and weight_sum
+//'
+//' @export
+// [[Rcpp::export]]
+List cpp_pairwise_moran_custom_sparse(
+    arma::mat data,
+    arma::sp_mat W,
+    int mode = 0,
+    bool verbose = true) {
+
+    int n_genes = data.n_rows;
+    int n_spots = data.n_cols;
+
+    if (verbose) {
+        Rcout << "Pairwise Moran's I (Custom Sparse Weights)" << std::endl;
+        Rcout << n_spots << " spots, " << n_genes << " genes" << std::endl;
+    }
+
+    // Compute weight sum
+    double weight_sum = arma::accu(W);
+    if (weight_sum == 0.0) {
+        stop("Weight matrix has no non-zero weights");
+    }
+
+    if (verbose) {
+        Rcout << "Weight sum (S0): " << weight_sum << std::endl;
+        Rcout << "W non-zeros: " << W.n_nonzero << " (sparsity: " <<
+            (1.0 - (double)W.n_nonzero / ((double)n_spots * n_spots)) * 100 << "%)" << std::endl;
+    }
+
+    // Z-normalize using population SD
+    if (verbose) Rcout << "Z-normalizing data..." << std::endl;
+    data = cpp_z_normalize(data);
+
+    // Compute Moran's I: M = Z * W * Z^T / S0
+    if (verbose) Rcout << "Computing pairwise Moran's I..." << std::endl;
+
+    arma::mat result;
+    if (mode == 1) {
+        // Single mode: diagonal only
+        arma::mat temp = data * W;
+        arma::vec diag_result(n_genes);
+        for (int i = 0; i < n_genes; i++) {
+            diag_result(i) = arma::dot(temp.row(i), data.row(i)) / weight_sum;
+        }
+        result = arma::mat(diag_result);
+    } else if (mode == 2) {
+        // First mode: pairs with first gene only
+        arma::mat temp = data * W;
+        result = (temp * data.row(0).t()) / weight_sum;
+    } else {
+        // Paired mode: full matrix
+        arma::mat temp = data * W;
+        result = (temp * data.t()) / weight_sum;
+    }
+
+    if (verbose) Rcout << "Done." << std::endl;
+
+    return List::create(
+        Named("moran") = result,
+        Named("weight_sum") = weight_sum
+    );
+}

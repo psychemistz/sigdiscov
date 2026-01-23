@@ -260,28 +260,30 @@ pairwise_moran_custom <- function(
     mode = "paired",
     verbose = TRUE
 ) {
-    # Convert to matrices if needed
+    # Convert data to matrix if needed
     if (!is.matrix(data)) {
         data <- as.matrix(data)
     }
-    W <- as.matrix(weight_matrix)
+
+    # Check if weight matrix is sparse
+    is_sparse <- methods::is(weight_matrix, "sparseMatrix")
 
     # Validate dimensions
     n_spots <- ncol(data)
 
-    if (nrow(W) != ncol(W)) {
+    if (nrow(weight_matrix) != ncol(weight_matrix)) {
         stop("Weight matrix must be square")
     }
-    if (n_spots != nrow(W)) {
+    if (n_spots != nrow(weight_matrix)) {
         stop(sprintf(
             "Number of spots in data (%d) must match weight matrix dimension (%d)",
-            n_spots, nrow(W)
+            n_spots, nrow(weight_matrix)
         ))
     }
 
     # Check for matching spot names if available
     data_spots <- colnames(data)
-    weight_spots <- rownames(W)
+    weight_spots <- rownames(weight_matrix)
 
     if (!is.null(data_spots) && !is.null(weight_spots)) {
         if (!all(data_spots %in% weight_spots)) {
@@ -295,73 +297,47 @@ pairwise_moran_custom <- function(
                 length(common_spots)
             ))
         }
-        W <- W[data_spots, data_spots]
-    }
-
-    # Ensure symmetry
-    if (!isSymmetric(W, tol = 1e-10)) {
-        if (verbose) message("Symmetrizing weight matrix...")
-        W <- (W + t(W)) / 2
-    }
-
-    # Compute S0
-    S0 <- sum(W)
-
-    if (S0 == 0) {
-        stop("Weight matrix has no non-zero weights")
+        weight_matrix <- weight_matrix[data_spots, data_spots]
     }
 
     # Normalize if requested
     if (normalize) {
-        W <- W / S0
-        S0 <- 1.0
+        S0 <- sum(weight_matrix)
+        weight_matrix <- weight_matrix / S0
     }
 
-    # Z-normalize expression data using population SD (divide by N, not N-1)
-    # This matches SpaCET's normalization approach
-    if (verbose) message("Z-normalizing expression data...")
-    data_z <- t(apply(data, 1, function(x) {
-        n <- length(x)
-        mean_x <- mean(x)
-        # Population SD: divide by N instead of N-1
-        sd_x <- sqrt(sum((x - mean_x)^2) / n)
-        if (sd_x < .Machine$double.eps) {
-            return(rep(0, n))
-        }
-        (x - mean_x) / sd_x
-    }))
+    # Convert mode to integer for C++
+    mode_int <- switch(mode,
+        "paired" = 0L,
+        "single" = 1L,
+        "first" = 2L,
+        0L  # default to paired
+    )
 
-    # Compute Moran's I
-    if (verbose) message("Computing Moran's I...")
-
-    if (mode == "single") {
-        # Univariate: only diagonal
-        moran_values <- sapply(seq_len(nrow(data_z)), function(i) {
-            z <- data_z[i, ]
-            sum(W * outer(z, z)) / S0
-        })
-        names(moran_values) <- rownames(data)
-
-        result <- list(
-            moran = moran_values,
-            gene_names = rownames(data),
-            S0 = S0
-        )
+    # Call C++ function (handles z-normalization with population SD internally)
+    if (is_sparse) {
+        cpp_result <- cpp_pairwise_moran_custom_sparse(data, weight_matrix, mode_int, verbose)
     } else {
-        # Pairwise: full matrix using M = Z * W * Z^T / S0
-        moran_matrix <- tcrossprod(data_z %*% W, data_z) / S0
-
-        rownames(moran_matrix) <- rownames(data)
-        colnames(moran_matrix) <- rownames(data)
-
-        result <- list(
-            moran = moran_matrix,
-            gene_names = rownames(data),
-            S0 = S0
-        )
+        W <- as.matrix(weight_matrix)
+        cpp_result <- cpp_pairwise_moran_custom(data, W, mode_int, verbose)
     }
 
-    result
+    # Format result
+    gene_names <- rownames(data)
+    moran <- cpp_result$moran
+
+    if (mode == "paired" && !is.null(gene_names)) {
+        rownames(moran) <- gene_names
+        colnames(moran) <- gene_names
+    } else if (!is.null(gene_names)) {
+        names(moran) <- gene_names
+    }
+
+    list(
+        moran = moran,
+        gene_names = gene_names,
+        weight_sum = cpp_result$weight_sum
+    )
 }
 
 

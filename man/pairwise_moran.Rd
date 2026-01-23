@@ -26,6 +26,7 @@ pairwise_moran_circular(
   sigma = 100,
   include_self = FALSE,
   mode = "paired",
+  sparse = TRUE,
   verbose = TRUE
 )
 }

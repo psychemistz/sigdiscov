@@ -374,7 +374,7 @@ pairwise_moran <- function(data,
         if (verbose) message("Creating circular RBF weight matrix...")
         W_result <- create_weights_visium(spot_coords, radius, type = "circular",
                                            sigma = sigma, include_self = same_spot,
-                                           sparse = FALSE)
+                                           sparse = sparse_W)
 
         if (W_result$weight_sum == 0) {
             stop("Weight matrix has no non-zero weights. Try increasing radius.")
@@ -382,7 +382,11 @@ pairwise_moran <- function(data,
 
         if (verbose) {
             message(sprintf("  Weight sum (S0): %.4f", W_result$weight_sum))
-            message(sprintf("  Non-zero weights: %d", sum(W_result$W > 0)))
+            if (sparse_W) {
+                message(sprintf("  W non-zeros: %d", Matrix::nnzero(W_result$W)))
+            } else {
+                message(sprintf("  Non-zero weights: %d", sum(W_result$W > 0)))
+            }
         }
 
         result <- pairwise_moran_custom(data, W_result$W, normalize = FALSE,

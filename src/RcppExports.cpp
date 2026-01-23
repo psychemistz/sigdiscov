@@ -261,6 +261,34 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// cpp_pairwise_moran_custom
+List cpp_pairwise_moran_custom(arma::mat data, arma::mat W, int mode, bool verbose);
+RcppExport SEXP _sigdiscov_cpp_pairwise_moran_custom(SEXP dataSEXP, SEXP WSEXP, SEXP modeSEXP, SEXP verboseSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type W(WSEXP);
+    Rcpp::traits::input_parameter< int >::type mode(modeSEXP);
+    Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpp_pairwise_moran_custom(data, W, mode, verbose));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cpp_pairwise_moran_custom_sparse
+List cpp_pairwise_moran_custom_sparse(arma::mat data, arma::sp_mat W, int mode, bool verbose);
+RcppExport SEXP _sigdiscov_cpp_pairwise_moran_custom_sparse(SEXP dataSEXP, SEXP WSEXP, SEXP modeSEXP, SEXP verboseSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< arma::sp_mat >::type W(WSEXP);
+    Rcpp::traits::input_parameter< int >::type mode(modeSEXP);
+    Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpp_pairwise_moran_custom_sparse(data, W, mode, verbose));
+    return rcpp_result_gen;
+END_RCPP
+}
 // permutation_test_cpp
 List permutation_test_cpp(const arma::vec& z_f, const arma::vec& lag_g, const std::string& metric, int n_perm);
 RcppExport SEXP _sigdiscov_permutation_test_cpp(SEXP z_fSEXP, SEXP lag_gSEXP, SEXP metricSEXP, SEXP n_permSEXP) {
@@ -471,6 +499,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sigdiscov_cpp_create_weight_matrix_sparse", (DL_FUNC) &_sigdiscov_cpp_create_weight_matrix_sparse, 5},
     {"_sigdiscov_cpp_pairwise_moran_W_sparse", (DL_FUNC) &_sigdiscov_cpp_pairwise_moran_W_sparse, 5},
     {"_sigdiscov_cpp_compute_moran_full_W_sparse", (DL_FUNC) &_sigdiscov_cpp_compute_moran_full_W_sparse, 9},
+    {"_sigdiscov_cpp_pairwise_moran_custom", (DL_FUNC) &_sigdiscov_cpp_pairwise_moran_custom, 4},
+    {"_sigdiscov_cpp_pairwise_moran_custom_sparse", (DL_FUNC) &_sigdiscov_cpp_pairwise_moran_custom_sparse, 4},
     {"_sigdiscov_permutation_test_cpp", (DL_FUNC) &_sigdiscov_permutation_test_cpp, 4},
     {"_sigdiscov_batch_permutation_test_cpp", (DL_FUNC) &_sigdiscov_batch_permutation_test_cpp, 6},
     {"_sigdiscov_allpairs_permutation_test_cpp", (DL_FUNC) &_sigdiscov_allpairs_permutation_test_cpp, 6},

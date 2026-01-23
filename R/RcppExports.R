@@ -181,6 +181,41 @@ cpp_compute_moran_full_W_sparse <- function(data, spot_row, spot_col, max_radius
     .Call(`_sigdiscov_cpp_compute_moran_full_W_sparse`, data, spot_row, spot_col, max_radius, platform, flag_samespot, paired_genes, all_genes, verbose)
 }
 
+#' Pairwise Moran's I with Custom Dense Weight Matrix
+#'
+#' Computes pairwise Moran's I using a user-provided dense weight matrix.
+#' Uses population SD (N) for z-normalization to match SpaCET.
+#'
+#' @param data Gene expression matrix (genes x spots), raw values
+#' @param W Dense weight matrix (spots x spots)
+#' @param mode Computation mode: "paired" (0), "single" (1), "first" (2)
+#' @param verbose Print progress messages
+#'
+#' @return List with moran matrix, gene_names placeholder, and weight_sum
+#'
+#' @export
+cpp_pairwise_moran_custom <- function(data, W, mode = 0L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_pairwise_moran_custom`, data, W, mode, verbose)
+}
+
+#' Pairwise Moran's I with Custom Sparse Weight Matrix
+#'
+#' Computes pairwise Moran's I using a user-provided sparse weight matrix.
+#' Uses population SD (N) for z-normalization to match SpaCET.
+#' More memory efficient than dense version for large datasets.
+#'
+#' @param data Gene expression matrix (genes x spots), raw values
+#' @param W Sparse weight matrix (spots x spots)
+#' @param mode Computation mode: "paired" (0), "single" (1), "first" (2)
+#' @param verbose Print progress messages
+#'
+#' @return List with moran matrix, gene_names placeholder, and weight_sum
+#'
+#' @export
+cpp_pairwise_moran_custom_sparse <- function(data, W, mode = 0L, verbose = TRUE) {
+    .Call(`_sigdiscov_cpp_pairwise_moran_custom_sparse`, data, W, mode, verbose)
+}
+
 #' Permutation Test for Spatial Correlation (Single Gene)
 #'
 #' Tests H0: No spatial association between factor and gene expression.

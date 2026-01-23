@@ -206,12 +206,12 @@ create_circular_weights_visium <- function(coords, radius, sigma = 100,
 #' @keywords internal
 pairwise_moran_circular <- function(data, coords, radius, sigma = 100,
                                      include_self = FALSE, mode = "paired",
-                                     verbose = TRUE) {
-    # Create circular weight matrix
+                                     sparse = TRUE, verbose = TRUE) {
+    # Create circular weight matrix (sparse by default for memory efficiency)
     if (verbose) message("Creating circular RBF weight matrix...")
     W_result <- create_weights_visium(coords, radius, type = "circular",
                                        sigma = sigma, include_self = include_self,
-                                       sparse = FALSE)
+                                       sparse = sparse)
 
     if (W_result$weight_sum == 0) {
         stop("Weight matrix has no non-zero weights. Try increasing radius.")
@@ -219,10 +219,14 @@ pairwise_moran_circular <- function(data, coords, radius, sigma = 100,
 
     if (verbose) {
         message(sprintf("  Weight sum (S0): %.4f", W_result$weight_sum))
-        message(sprintf("  Non-zero weights: %d", sum(W_result$W > 0)))
+        if (sparse) {
+            message(sprintf("  W non-zeros: %d", Matrix::nnzero(W_result$W)))
+        } else {
+            message(sprintf("  Non-zero weights: %d", sum(W_result$W > 0)))
+        }
     }
 
-    # Compute Moran's I using custom weights
+    # Compute Moran's I using custom weights (handles sparse/dense automatically)
     result <- pairwise_moran_custom(data, W_result$W, normalize = FALSE,
                                      mode = mode, verbose = verbose)
     result$W <- W_result$W
