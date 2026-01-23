@@ -2,66 +2,80 @@
 % Please edit documentation in R/weights_visium.R
 \name{create_weights_visium}
 \alias{create_weights_visium}
+\alias{create_circular_weights_visium}
 \title{Create Weight Matrix for Visium}
 \usage{
 create_weights_visium(
   coords,
-  radius,
-  type = c("gaussian", "binary"),
+  radius = 200,
+  type = c("circular", "grid", "binary"),
+  sigma = 100,
   include_self = FALSE,
+  sparse = TRUE,
   platform = c("visium", "old")
+)
+
+create_circular_weights_visium(
+  coords,
+  radius,
+  sigma = 100,
+  include_self = FALSE,
+  sparse = TRUE
 )
 }
 \arguments{
-\item{coords}{Spot coordinates. For type="gaussian", should be a data frame
-with 'row' and 'col' columns (grid coordinates). For type="binary", can be
-any n x 2 matrix of physical coordinates.}
+\item{coords}{Spot coordinates. For type="circular", should have x/y physical
+coordinates (e.g., micrometers). For type="grid", should have 'row' and 'col'
+grid coordinates.}
 
-\item{radius}{Numeric. For type="binary", distance threshold in coordinate units.
-For type="gaussian", converted to max_radius in grid units (radius / 100).}
+\item{radius}{Numeric. Distance cutoff in coordinate units. Default: 200.}
 
-\item{type}{Character. Weight type: "gaussian" (default) or "binary".}
+\item{type}{Character. Weight type: "circular" (default, SpaCET-compatible),
+"grid" (legacy hexagonal), or "binary" (row-normalized).}
+
+\item{sigma}{Numeric. RBF kernel bandwidth for circular weights. Default: 100.}
 
 \item{include_self}{Logical. Include self-connections (default: FALSE).}
 
-\item{platform}{Character. Platform type for gaussian weights: "visium" (default)
-or "old". Only used when type = "gaussian".}
+\item{sparse}{Logical. Return sparse matrix (default: TRUE for circular).}
+
+\item{platform}{Character. Platform type for grid weights: "visium" or "old".}
 }
 \value{
 A list with components:
-\item{W}{Sparse weight matrix (n x n)}
-\item{weight_sum}{Sum of all weights (for normalization)}
+\item{W}{Weight matrix (sparse or dense)}
+\item{weight_sum}{Sum of all weights (S0 for Moran's I normalization)}
 }
 \description{
-Creates a spatial weight matrix for Visium data. Supports both Gaussian
-distance decay weights (consistent with pairwise_moran) and binary weights.
+Creates a spatial weight matrix for Visium data. Supports circular RBF weights
+(SpaCET-compatible, default), grid-based Gaussian weights, and binary weights.
 }
 \details{
-Two weight types are supported:
+Three weight types are supported:
 
-\strong{Gaussian (default)}: Uses the same grid-based Gaussian distance decay as
-\code{pairwise_moran()}. Requires grid coordinates (row, col integers).
-Uses: \eqn{w_{ij} = exp(-d_{ij}^2 / (2 * 100^2))} where d is computed using
-Visium hexagonal grid geometry. This is recommended for consistency with
-pairwise Moran's I analysis.
+\strong{Circular (default)}: Uses Euclidean distance with RBF kernel and circular
+cutoff. Matches SpaCET's calWeights behavior.
+\deqn{w_{ij} = \exp(-d_{ij}^2 / (2\sigma^2)) \text{ if } d_{ij} \leq r}
+
+\strong{Grid}: Uses hexagonal grid coordinates with Gaussian distance decay.
+Legacy method for backward compatibility.
 
 \strong{Binary}: All spots within radius receive equal weight (row-normalized).
 \eqn{w_{ij} = 1/n_i} if \eqn{d(i,j) \le r}, else 0.
 }
 \examples{
 \dontrun{
-# Parse grid coordinates from spot names
-spot_coords <- parse_spot_names(colnames(data))
+# Circular weights (default, SpaCET-compatible)
+coords <- data.frame(x = spot_x_um, y = spot_y_um)
+W_result <- create_weights_visium(coords, radius = 200, sigma = 100)
 
-# Gaussian weights (default, matches pairwise_moran)
-W_result <- create_weights_visium(spot_coords, radius = 300, type = "gaussian")
-
-# Binary weights (legacy)
-W_result <- create_weights_visium(spot_coords, radius = 300, type = "binary")
+# Grid-based weights (legacy)
+grid_coords <- parse_spot_names(colnames(data))
+W_result <- create_weights_visium(grid_coords, radius = 300, type = "grid")
 }
 
 }
 \seealso{
-\code{\link{pairwise_moran}}, \code{\link{create_ring_weights_visium}},
-\code{\link{create_directional_weights_visium}}
+\code{\link{pairwise_moran}}, \code{\link{create_ring_weights_visium}}
 }
+\keyword{internal}

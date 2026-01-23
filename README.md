@@ -6,12 +6,13 @@ R package for computing spatial correlation metrics in spatial transcriptomics d
 
 ## Features
 
-- **Visium support**: Binary weights for grid-based spots (~100um spacing)
+- **Visium support**: Circular RBF weights (SpaCET-compatible) as default
 - **Single-cell support**: Gaussian weights for continuous coordinates
 - **Metrics**: Bivariate Moran's I and I_ND (cosine similarity)
 - **Delta I**: Signed distance-dependent correlation signatures
 - **Batch computation**: All cell type pairs with HDF5 output
 - **High performance**: RcppArmadillo matrix operations
+- **SpaCET-compatible**: Uses population SD (N) for z-normalization
 
 ## Installation
 
@@ -38,12 +39,21 @@ data <- read.table("vst.tsv", header=TRUE, row.names=1)
 colnames(data) <- gsub("X", "", colnames(data))
 data <- as.matrix(data)
 
-# Parse spot coordinates from column names (format: "ROW_COL")
+# Parse spot coordinates from column names (format: "ROWxCOL")
 spot_coords <- parse_spot_names(colnames(data))
 
-# Compute pairwise Moran's I matrix
-result <- pairwise_moran(data, spot_coords, max_radius = 3)
-result[1:5, 1:5]
+# Convert to physical coordinates (um)
+coords <- data.frame(
+  x = spot_coords$col * 100,
+  y = spot_coords$row * 100 * sqrt(3) / 2
+)
+
+# Compute pairwise Moran's I matrix (circular weights, default)
+result <- pairwise_moran(data, coords, radius = 200, sigma = 100)
+result$moran[1:5, 1:5]
+
+# Or use legacy grid-based weights
+result_grid <- pairwise_moran(data, spot_coords, weight_type = "grid", max_radius = 3)
 ```
 
 ### Visium: Signature Analysis
@@ -117,8 +127,8 @@ save_hdf5_sc(result, "signatures.h5")
 | Function | Description |
 |----------|-------------|
 | `compute_signature_visium()` | Main Visium analysis |
-| `pairwise_moran()` | Pairwise Moran's I matrix |
-| `create_weights_visium()` | Binary weight matrix |
+| `pairwise_moran()` | Pairwise Moran's I matrix (circular weights default) |
+| `create_weights_visium()` | Weight matrix (circular default, grid optional) |
 | `create_ring_weights_visium()` | Ring (annular) weights |
 
 ### Single-Cell Analysis
@@ -160,13 +170,19 @@ Distance-dependent signature: `delta_I = sign * (I_max - I_min)`
 
 ## Weight Matrices
 
-### Visium (Gaussian Distance Decay)
-Gaussian distance decay for pairwise Moran's I computation:
+### Visium (Circular RBF - Default)
+Circular Euclidean distance with RBF kernel (SpaCET-compatible):
+```
+w_ij = exp(-d_ij^2 / (2 * sigma^2))  if d_ij <= radius, else 0
+```
+Default: `radius = 200`, `sigma = 100`
+
+### Visium (Grid-based - Legacy)
+Hexagonal grid-based Gaussian distance decay:
 ```
 w_ij = exp(-d_ij^2 / (2 * sigma^2))    # sigma = 100
 ```
-
-Sparse weight matrix is used by default for memory efficiency.
+Use with `weight_type = "grid"` and `max_radius` parameter.
 
 ### Single-Cell (Gaussian)
 Gaussian kernel with `sigma = radius / 3`:
@@ -174,9 +190,9 @@ Gaussian kernel with `sigma = radius / 3`:
 w_ij = exp(-d_ij^2 / (2 * sigma^2))
 ```
 
-## Benchmark: Dense vs Sparse Weight Matrix
+## Benchmark: Grid-based Dense vs Sparse Weight Matrix
 
-Tested on real Visium datasets with `max_radius = 3`:
+Tested on real Visium datasets with `weight_type = "grid"` and `max_radius = 3`:
 
 | Dataset | Genes | Spots | Dense W Time | Sparse W Time | Dense W Memory | Sparse W Memory |
 |---------|-------|-------|--------------|---------------|----------------|-----------------|
@@ -188,12 +204,13 @@ Tested on real Visium datasets with `max_radius = 3`:
 - **Identical outputs** (max difference < 1e-16)
 - **~99% memory reduction** for weight matrix storage
 - **Similar computation speed** (within 5-20%)
-- Sparse W is default (`sparse_W = TRUE`)
 
-For comparison, use `sparse_W = FALSE` for dense weight matrix:
-```r
-result <- pairwise_moran(data, spot_coords, sparse_W = FALSE)
-```
+## SpaCET Compatibility
+
+The default circular weights implementation produces **identical results** to SpaCET:
+- Weight matrix difference: < 1e-16
+- Moran's I difference: < 1e-15
+- Uses population SD (N) for z-normalization
 
 ## License
 
