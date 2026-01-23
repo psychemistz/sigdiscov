@@ -40,11 +40,16 @@ parse_spot_names <- function(spot_names) {
 #' standardize(x)
 #' # Returns approximately: -1.26, -0.63, 0, 0.63, 1.26
 #'
-#' @importFrom stats sd
 #' @export
 standardize <- function(x, na.rm = TRUE) {
-    m <- mean(x, na.rm = na.rm)
-    s <- sd(x, na.rm = na.rm)
+    if (na.rm) {
+        x_clean <- x[!is.na(x)]
+    } else {
+        x_clean <- x
+    }
+    n <- length(x_clean)
+    m <- mean(x_clean)
+    s <- sqrt(sum((x_clean - m)^2) / n)  # Population SD
     (x - m) / (s + 1e-10)
 }
 
@@ -68,7 +73,14 @@ standardize <- function(x, na.rm = TRUE) {
 #'
 #' @export
 standardize_matrix <- function(X) {
-    t(scale(t(X)))
+    # Use population SD (N, not N-1) for consistency
+    t(apply(X, 1, function(row) {
+        n <- length(row)
+        m <- mean(row)
+        s <- sqrt(sum((row - m)^2) / n)
+        if (s < 1e-10) return(rep(0, n))
+        (row - m) / s
+    }))
 }
 
 #' Adjust P-values for Multiple Testing

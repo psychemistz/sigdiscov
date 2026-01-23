@@ -264,14 +264,16 @@ moran_permutation_test <- function(
         stop("Weight matrix has no non-zero weights. Try increasing max_radius.")
     }
 
-    # Z-normalize data
+    # Z-normalize data using population SD (N, not N-1)
     if (verbose) message("Z-normalizing expression data...")
     data_z <- t(apply(data, 1, function(x) {
-        sd_x <- sd(x)
+        n <- length(x)
+        mean_x <- mean(x)
+        sd_x <- sqrt(sum((x - mean_x)^2) / n)
         if (sd_x < .Machine$double.eps) {
-            return(rep(0, length(x)))
+            return(rep(0, n))
         }
-        (x - mean(x)) / sd_x
+        (x - mean_x) / sd_x
     }))
 
     # Compute observed Moran's I: M = Z * W * Z^T / S0

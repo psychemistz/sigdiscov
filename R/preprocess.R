@@ -201,8 +201,9 @@ standardize_matrix <- function(expr, verbose = FALSE) {
 #'
 #' @keywords internal
 standardize <- function(x) {
+    n <- length(x)
     m <- mean(x)
-    s <- stats::sd(x)
-    if (s < 1e-10) return(rep(0, length(x)))
+    s <- sqrt(sum((x - m)^2) / n)  # Population SD
+    if (s < 1e-10) return(rep(0, n))
     return((x - m) / s)
 }

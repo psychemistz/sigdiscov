@@ -1,11 +1,14 @@
 # Tests for utility functions
 
-test_that("standardize produces mean 0 and sd 1", {
+test_that("standardize produces mean 0 and population sd 1", {
     x <- c(1, 2, 3, 4, 5)
     z <- standardize(x)
 
+    # Population SD: sqrt(sum((x - mean)^2) / n)
+    pop_sd <- sqrt(sum((z - mean(z))^2) / length(z))
+
     expect_equal(mean(z), 0, tolerance = 1e-10)
-    expect_equal(sd(z), 1, tolerance = 1e-10)
+    expect_equal(pop_sd, 1, tolerance = 1e-10)
 })
 
 test_that("standardize handles constant vectors", {
@@ -20,12 +23,12 @@ test_that("standardize_matrix standardizes row-wise", {
     X <- matrix(1:20, nrow = 4, ncol = 5)
     X_norm <- standardize_matrix(X)
 
-    # Each row should have mean ~0 and sd ~1
+    # Each row should have mean ~0 and population sd ~1
     row_means <- rowMeans(X_norm)
-    row_sds <- apply(X_norm, 1, sd)
+    row_pop_sds <- apply(X_norm, 1, function(r) sqrt(sum((r - mean(r))^2) / length(r)))
 
     expect_true(all(abs(row_means) < 1e-10))
-    expect_true(all(abs(row_sds - 1) < 1e-10))
+    expect_true(all(abs(row_pop_sds - 1) < 1e-10))
 })
 
 test_that("adjust_pvalues applies correction", {

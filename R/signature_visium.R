@@ -479,10 +479,15 @@ moran_I <- function(x, y, W, normalize = TRUE) {
         stop("W must be a square matrix with dimensions matching x and y")
     }
 
-    # Z-normalize if requested
+    # Z-normalize if requested (using population SD)
     if (normalize) {
-        x <- (x - mean(x)) / stats::sd(x)
-        y <- (y - mean(y)) / stats::sd(y)
+        n <- length(x)
+        mean_x <- mean(x)
+        mean_y <- mean(y)
+        sd_x <- sqrt(sum((x - mean_x)^2) / n)
+        sd_y <- sqrt(sum((y - mean_y)^2) / n)
+        x <- (x - mean_x) / sd_x
+        y <- (y - mean_y) / sd_y
     }
 
     # Compute Moran's I: (x' W y) / sum(W)
