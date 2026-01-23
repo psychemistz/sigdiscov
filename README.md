@@ -205,11 +205,26 @@ Tested on real Visium datasets with `weight_type = "grid"` and `max_radius = 3`:
 - **~99% memory reduction** for weight matrix storage
 - **Similar computation speed** (within 5-20%)
 
+## Benchmark: Circular RBF vs SpaCET
+
+Tested on Visium dataset (5,000 genes × 3,813 spots, radius=200, sigma=100):
+
+| Implementation | Time | Speedup | W Memory |
+|----------------|------|---------|----------|
+| SpaCET R | 536.9s | 1x | 110.9 MB |
+| sigdiscov Dense C++ | 25.7s | **20.9x** | 110.9 MB |
+| sigdiscov Sparse C++ | 20.9s | **25.7x** | **0.35 MB** |
+
+**Key findings:**
+- **Identical outputs** (max difference < 1e-12, correlation = 1.0)
+- **21-26x faster** than SpaCET R implementation
+- **314x memory reduction** for weight matrix with sparse mode
+
 ## SpaCET Compatibility
 
 The default circular weights implementation produces **identical results** to SpaCET:
 - Weight matrix difference: < 1e-16
-- Moran's I difference: < 1e-15
+- Moran's I difference: < 1e-12
 - Uses population SD (N) for z-normalization
 
 ## License
