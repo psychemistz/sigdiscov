@@ -110,6 +110,35 @@ result <- compute_batch_sc(
 save_hdf5_sc(result, "signatures.h5")
 ```
 
+## Command-Line Analysis
+
+A unified analysis script is provided for comparing spatial metrics with reference signatures:
+
+```bash
+# Basic usage (computes Moran's I, I_ND, compares with CytoSig/SecAct)
+Rscript run_analysis.R --vst data.tsv --output results
+
+# With permutation testing for z-scores (1000 permutations)
+Rscript run_analysis.R --vst data.tsv --output results --n_perm 1000
+
+# Analyze specific factors only
+Rscript run_analysis.R --vst data.tsv --output results --factors IFNG,TGFB1
+
+# Custom parameters
+Rscript run_analysis.R --vst data.tsv --output results \
+    --radius 200 --sigma 100 --n_perm 1000 --seed 42
+```
+
+**Options:**
+| Argument | Description | Default |
+|----------|-------------|---------|
+| `--vst` | VST expression matrix (genes × spots) | Required |
+| `--output` | Output directory | `output` |
+| `--radius` | Spatial radius for weights | 200 |
+| `--sigma` | RBF kernel bandwidth | 100 |
+| `--n_perm` | Permutations for z-scores (0 to skip) | 1000 |
+| `--factors` | Comma-separated factor list | All common |
+
 ## Main Functions
 
 ### Data Loading
