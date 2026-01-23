@@ -1,18 +1,171 @@
 // [[Rcpp::depends(RcppArmadillo)]]
 #include <RcppArmadillo.h>
 #include <vector>
+#include <cmath>
 
 using namespace Rcpp;
 
 // =============================================================================
 // VISIUM-SPECIFIC WEIGHT MATRIX FUNCTIONS
 //
-// For Visium data, we use binary weights (all neighbors within radius get equal
-// weight) because:
-// - Grid structure has regular spacing (~100μm center-to-center)
-// - Spot density is relatively low (~4K spots per sample)
-// - Distance-decay effects are less pronounced at this resolution
+// Two approaches supported:
+// 1. Grid-based (rectangular): Uses hexagonal grid coordinates with Gaussian decay
+// 2. Circular (Euclidean): Uses physical coordinates with RBF kernel and radius cutoff
+//
+// The circular approach matches SpaCET's calWeights function behavior.
 // =============================================================================
+
+
+//' Create Circular RBF Weight Matrix
+//'
+//' Computes a sparse weight matrix using RBF kernel with circular (Euclidean)
+//' distance cutoff. This matches the SpaCET calWeights behavior.
+//'
+//' @param coords Spot coordinates matrix (n x 2), physical units (e.g., micrometers)
+//' @param radius Distance cutoff. Only spots within this radius are connected.
+//' @param sigma RBF kernel bandwidth. Default: 100.
+//' @param include_self Include self-connections (diagonal). Default: FALSE.
+//'
+//' @return A list containing:
+//'   \item{W}{Sparse weight matrix (n x n), NOT row-normalized}
+//'   \item{weight_sum}{Sum of all weights (S0 for Moran's I normalization)}
+//'
+//' @details
+//' The weight is computed as:
+//' \deqn{w_{ij} = \exp\left(-\frac{d_{ij}^2}{2\sigma^2}\right) \text{ if } d_{ij} \leq r}
+//'
+//' where \eqn{d_{ij}} is the Euclidean distance between spots i and j.
+//'
+//' This function is designed to match SpaCET's calWeights behavior for
+//' spatial correlation analysis.
+//'
+//' @export
+// [[Rcpp::export]]
+List create_circular_weights_cpp(
+    const arma::mat& coords,
+    double radius,
+    double sigma = 100.0,
+    bool include_self = false
+) {
+    int n = coords.n_rows;
+    double radius_sq = radius * radius;
+    double sigma_sq_2 = 2.0 * sigma * sigma;
+
+    // Triplet storage for sparse matrix
+    std::vector<arma::uword> rows, cols;
+    std::vector<double> values;
+    double weight_sum = 0.0;
+
+    for (int i = 0; i < n; i++) {
+        double xi = coords(i, 0);
+        double yi = coords(i, 1);
+
+        for (int j = 0; j < n; j++) {
+            if (!include_self && i == j) continue;
+
+            double dx = xi - coords(j, 0);
+            double dy = yi - coords(j, 1);
+            double dist_sq = dx * dx + dy * dy;
+
+            // Only include if within radius
+            if (dist_sq <= radius_sq && dist_sq > 0) {
+                // RBF kernel: exp(-d^2 / (2*sigma^2))
+                double weight = std::exp(-dist_sq / sigma_sq_2);
+
+                rows.push_back(i);
+                cols.push_back(j);
+                values.push_back(weight);
+                weight_sum += weight;
+            }
+        }
+
+        // Handle self-connection
+        if (include_self) {
+            rows.push_back(i);
+            cols.push_back(i);
+            values.push_back(1.0);
+            weight_sum += 1.0;
+        }
+    }
+
+    // Build sparse matrix
+    arma::sp_mat W;
+    if (rows.empty()) {
+        W = arma::sp_mat(n, n);
+    } else {
+        arma::umat locations(2, rows.size());
+        for (size_t k = 0; k < rows.size(); k++) {
+            locations(0, k) = rows[k];
+            locations(1, k) = cols[k];
+        }
+        W = arma::sp_mat(locations, arma::vec(values), n, n);
+    }
+
+    return List::create(
+        Named("W") = W,
+        Named("weight_sum") = weight_sum
+    );
+}
+
+
+//' Create Circular RBF Weight Matrix (Dense Version)
+//'
+//' Same as create_circular_weights_cpp but returns a dense matrix.
+//' Useful when sparsity is low or for compatibility with functions
+//' expecting dense matrices.
+//'
+//' @param coords Spot coordinates matrix (n x 2)
+//' @param radius Distance cutoff
+//' @param sigma RBF kernel bandwidth. Default: 100.
+//' @param include_self Include self-connections. Default: FALSE.
+//'
+//' @return A list containing:
+//'   \item{W}{Dense weight matrix (n x n)}
+//'   \item{weight_sum}{Sum of all weights}
+//'
+//' @export
+// [[Rcpp::export]]
+List create_circular_weights_dense_cpp(
+    const arma::mat& coords,
+    double radius,
+    double sigma = 100.0,
+    bool include_self = false
+) {
+    int n = coords.n_rows;
+    double radius_sq = radius * radius;
+    double sigma_sq_2 = 2.0 * sigma * sigma;
+
+    arma::mat W(n, n, arma::fill::zeros);
+    double weight_sum = 0.0;
+
+    for (int i = 0; i < n; i++) {
+        double xi = coords(i, 0);
+        double yi = coords(i, 1);
+
+        for (int j = i + 1; j < n; j++) {  // Upper triangle only, then symmetrize
+            double dx = xi - coords(j, 0);
+            double dy = yi - coords(j, 1);
+            double dist_sq = dx * dx + dy * dy;
+
+            if (dist_sq <= radius_sq && dist_sq > 0) {
+                double weight = std::exp(-dist_sq / sigma_sq_2);
+                W(i, j) = weight;
+                W(j, i) = weight;  // Symmetric
+                weight_sum += 2.0 * weight;
+            }
+        }
+
+        if (include_self) {
+            W(i, i) = 1.0;
+            weight_sum += 1.0;
+        }
+    }
+
+    return List::create(
+        Named("W") = W,
+        Named("weight_sum") = weight_sum
+    );
+}
 
 //' Create Binary Weight Matrix for Visium
 //'

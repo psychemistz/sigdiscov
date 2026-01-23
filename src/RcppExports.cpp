@@ -276,8 +276,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // batch_permutation_test_cpp
-DataFrame batch_permutation_test_cpp(const arma::vec& z_f, const arma::mat& Z_g, const arma::sp_mat& W, const std::string& metric, int n_perm);
-RcppExport SEXP _sigdiscov_batch_permutation_test_cpp(SEXP z_fSEXP, SEXP Z_gSEXP, SEXP WSEXP, SEXP metricSEXP, SEXP n_permSEXP) {
+DataFrame batch_permutation_test_cpp(const arma::vec& z_f, const arma::mat& Z_g, const arma::sp_mat& W, const std::string& metric, int n_perm, double weight_sum);
+RcppExport SEXP _sigdiscov_batch_permutation_test_cpp(SEXP z_fSEXP, SEXP Z_gSEXP, SEXP WSEXP, SEXP metricSEXP, SEXP n_permSEXP, SEXP weight_sumSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -286,7 +286,61 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const arma::sp_mat& >::type W(WSEXP);
     Rcpp::traits::input_parameter< const std::string& >::type metric(metricSEXP);
     Rcpp::traits::input_parameter< int >::type n_perm(n_permSEXP);
-    rcpp_result_gen = Rcpp::wrap(batch_permutation_test_cpp(z_f, Z_g, W, metric, n_perm));
+    Rcpp::traits::input_parameter< double >::type weight_sum(weight_sumSEXP);
+    rcpp_result_gen = Rcpp::wrap(batch_permutation_test_cpp(z_f, Z_g, W, metric, n_perm, weight_sum));
+    return rcpp_result_gen;
+END_RCPP
+}
+// allpairs_permutation_test_cpp
+List allpairs_permutation_test_cpp(const arma::mat& data_z, const arma::mat& W, double S0, int n_perm, unsigned int seed, bool verbose);
+RcppExport SEXP _sigdiscov_allpairs_permutation_test_cpp(SEXP data_zSEXP, SEXP WSEXP, SEXP S0SEXP, SEXP n_permSEXP, SEXP seedSEXP, SEXP verboseSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type data_z(data_zSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< double >::type S0(S0SEXP);
+    Rcpp::traits::input_parameter< int >::type n_perm(n_permSEXP);
+    Rcpp::traits::input_parameter< unsigned int >::type seed(seedSEXP);
+    Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(allpairs_permutation_test_cpp(data_z, W, S0, n_perm, seed, verbose));
+    return rcpp_result_gen;
+END_RCPP
+}
+// pairwise_moran_matrix_cpp
+arma::mat pairwise_moran_matrix_cpp(const arma::mat& data_z, const arma::mat& W, double S0);
+RcppExport SEXP _sigdiscov_pairwise_moran_matrix_cpp(SEXP data_zSEXP, SEXP WSEXP, SEXP S0SEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type data_z(data_zSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< double >::type S0(S0SEXP);
+    rcpp_result_gen = Rcpp::wrap(pairwise_moran_matrix_cpp(data_z, W, S0));
+    return rcpp_result_gen;
+END_RCPP
+}
+// z_normalize_matrix_cpp
+arma::mat z_normalize_matrix_cpp(const arma::mat& X);
+RcppExport SEXP _sigdiscov_z_normalize_matrix_cpp(SEXP XSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
+    rcpp_result_gen = Rcpp::wrap(z_normalize_matrix_cpp(X));
+    return rcpp_result_gen;
+END_RCPP
+}
+// single_gene_moran_cpp
+arma::vec single_gene_moran_cpp(const arma::mat& data_z, const arma::mat& W, double S0);
+RcppExport SEXP _sigdiscov_single_gene_moran_cpp(SEXP data_zSEXP, SEXP WSEXP, SEXP S0SEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type data_z(data_zSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< double >::type S0(S0SEXP);
+    rcpp_result_gen = Rcpp::wrap(single_gene_moran_cpp(data_z, W, S0));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -328,6 +382,34 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double >::type inner_radius(inner_radiusSEXP);
     Rcpp::traits::input_parameter< double >::type sigma(sigmaSEXP);
     rcpp_result_gen = Rcpp::wrap(create_gaussian_ring_weights_cpp(coords, outer_radius, inner_radius, sigma));
+    return rcpp_result_gen;
+END_RCPP
+}
+// create_circular_weights_cpp
+List create_circular_weights_cpp(const arma::mat& coords, double radius, double sigma, bool include_self);
+RcppExport SEXP _sigdiscov_create_circular_weights_cpp(SEXP coordsSEXP, SEXP radiusSEXP, SEXP sigmaSEXP, SEXP include_selfSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type coords(coordsSEXP);
+    Rcpp::traits::input_parameter< double >::type radius(radiusSEXP);
+    Rcpp::traits::input_parameter< double >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< bool >::type include_self(include_selfSEXP);
+    rcpp_result_gen = Rcpp::wrap(create_circular_weights_cpp(coords, radius, sigma, include_self));
+    return rcpp_result_gen;
+END_RCPP
+}
+// create_circular_weights_dense_cpp
+List create_circular_weights_dense_cpp(const arma::mat& coords, double radius, double sigma, bool include_self);
+RcppExport SEXP _sigdiscov_create_circular_weights_dense_cpp(SEXP coordsSEXP, SEXP radiusSEXP, SEXP sigmaSEXP, SEXP include_selfSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type coords(coordsSEXP);
+    Rcpp::traits::input_parameter< double >::type radius(radiusSEXP);
+    Rcpp::traits::input_parameter< double >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< bool >::type include_self(include_selfSEXP);
+    rcpp_result_gen = Rcpp::wrap(create_circular_weights_dense_cpp(coords, radius, sigma, include_self));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -390,10 +472,16 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sigdiscov_cpp_pairwise_moran_W_sparse", (DL_FUNC) &_sigdiscov_cpp_pairwise_moran_W_sparse, 5},
     {"_sigdiscov_cpp_compute_moran_full_W_sparse", (DL_FUNC) &_sigdiscov_cpp_compute_moran_full_W_sparse, 9},
     {"_sigdiscov_permutation_test_cpp", (DL_FUNC) &_sigdiscov_permutation_test_cpp, 4},
-    {"_sigdiscov_batch_permutation_test_cpp", (DL_FUNC) &_sigdiscov_batch_permutation_test_cpp, 5},
+    {"_sigdiscov_batch_permutation_test_cpp", (DL_FUNC) &_sigdiscov_batch_permutation_test_cpp, 6},
+    {"_sigdiscov_allpairs_permutation_test_cpp", (DL_FUNC) &_sigdiscov_allpairs_permutation_test_cpp, 6},
+    {"_sigdiscov_pairwise_moran_matrix_cpp", (DL_FUNC) &_sigdiscov_pairwise_moran_matrix_cpp, 3},
+    {"_sigdiscov_z_normalize_matrix_cpp", (DL_FUNC) &_sigdiscov_z_normalize_matrix_cpp, 1},
+    {"_sigdiscov_single_gene_moran_cpp", (DL_FUNC) &_sigdiscov_single_gene_moran_cpp, 3},
     {"_sigdiscov_sparse_row_normalize_cpp", (DL_FUNC) &_sigdiscov_sparse_row_normalize_cpp, 1},
     {"_sigdiscov_create_gaussian_weights_cpp", (DL_FUNC) &_sigdiscov_create_gaussian_weights_cpp, 6},
     {"_sigdiscov_create_gaussian_ring_weights_cpp", (DL_FUNC) &_sigdiscov_create_gaussian_ring_weights_cpp, 4},
+    {"_sigdiscov_create_circular_weights_cpp", (DL_FUNC) &_sigdiscov_create_circular_weights_cpp, 4},
+    {"_sigdiscov_create_circular_weights_dense_cpp", (DL_FUNC) &_sigdiscov_create_circular_weights_dense_cpp, 4},
     {"_sigdiscov_create_binary_weights_cpp", (DL_FUNC) &_sigdiscov_create_binary_weights_cpp, 3},
     {"_sigdiscov_create_ring_weights_cpp", (DL_FUNC) &_sigdiscov_create_ring_weights_cpp, 3},
     {"_sigdiscov_create_directional_weights_cpp", (DL_FUNC) &_sigdiscov_create_directional_weights_cpp, 3},

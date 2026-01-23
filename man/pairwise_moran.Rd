@@ -7,6 +7,9 @@
 pairwise_moran(
   data,
   spot_coords,
+  weight_type = c("circular", "grid"),
+  radius = 200,
+  sigma = 100,
   max_radius = 5,
   platform = c("visium", "old"),
   same_spot = FALSE,
@@ -19,58 +22,77 @@ pairwise_moran(
 \item{data}{A matrix or sparse matrix (dgCMatrix) of gene expression values.
 Rows are genes, columns are spots.}
 
-\item{spot_coords}{A data frame or matrix with spot coordinates. Should have
-columns named 'row' and 'col', or be a 2-column matrix.}
+\item{spot_coords}{A data frame or matrix with spot coordinates. For
+weight_type="circular", should have x/y coordinates in physical units
+(e.g., micrometers). For weight_type="grid", should have 'row' and 'col'
+grid coordinates.}
 
-\item{max_radius}{Maximum grid radius for computing distances. Default: 5.}
+\item{weight_type}{Weight computation method: "circular" (default, matches
+SpaCET) or "grid" (legacy hexagonal grid-based).}
 
-\item{platform}{Platform type: "visium" (default) or "old".}
+\item{radius}{For circular weights: distance cutoff in physical units
+(default: 200). For grid weights: converted to max_radius.}
 
-\item{same_spot}{Whether to consider the same spot in computation. Default: FALSE.}
+\item{sigma}{RBF kernel bandwidth for circular weights. Default: 100.}
+
+\item{max_radius}{Maximum grid radius for grid-based weights. Default: 5.
+Ignored when weight_type="circular".}
+
+\item{platform}{Platform type for grid weights: "visium" or "old".
+Ignored when weight_type="circular".}
+
+\item{same_spot}{Whether to include self-connections. Default: FALSE.}
 
 \item{mode}{Computation mode: "paired" (all pairs), "first" (pairs with first gene),
 or "single" (diagonal only). Default: "paired".}
 
-\item{sparse_W}{Use sparse weight matrix for memory efficiency. Default: TRUE.
-Uses ~99\% less memory for the weight matrix with similar computation speed.}
+\item{sparse_W}{Use sparse weight matrix for memory efficiency. Default: TRUE.}
 
 \item{verbose}{Print progress messages. Default: TRUE.}
 }
 \value{
-A matrix of pairwise Moran's I values. For mode="paired", returns a
-symmetric matrix where element \link{i,j} is the Moran's I between genes i and j.
+A list containing:
+\item{moran}{Matrix of pairwise Moran's I values (for mode="paired"), or
+vector for other modes}
+\item{gene_names}{Names of genes}
+\item{weight_sum}{Sum of weights (S0)}
+\item{W}{The weight matrix used (for circular weights)}
 }
 \description{
 Compute pairwise Moran's I statistics between all genes in spatial
-transcriptomics data using Gaussian distance decay weights.
+transcriptomics data. Supports two weight types: circular (Euclidean distance
+with RBF kernel, matching SpaCET) and grid-based (hexagonal grid with
+Gaussian decay).
 }
 \details{
-This function computes the classic pairwise Moran's I matrix where each
-entry (i,j) represents the spatial correlation between gene i and gene j.
+Two weight computation methods are supported:
 
-Uses Gaussian distance decay weights with sigma=100 for Visium data,
-accounting for the hexagonal grid geometry.
+\strong{Circular (default)}: Uses Euclidean distance with RBF kernel and circular
+cutoff. This matches SpaCET's calWeights behavior and uses population SD
+(divide by N) for z-normalization.
+\deqn{w_{ij} = \exp(-d_{ij}^2 / (2\sigma^2)) \text{ if } d_{ij} \leq r}
 
-When \code{sparse_W = TRUE}, the weight matrix is stored in sparse format,
-reducing memory usage from O(n^2) to O(n * k) where k is the average
-number of neighbors per spot. This is particularly useful for large datasets.
+\strong{Grid}: Uses hexagonal grid coordinates with Gaussian distance decay.
+This is the legacy method that accounts for Visium's hexagonal geometry.
 }
 \examples{
 \dontrun{
 # Load VST-transformed data
 data <- read.table("vst.tsv", header=TRUE, row.names=1)
-colnames(data) <- gsub("X", "", colnames(data))
 data <- as.matrix(data)
 
-# Parse spot coordinates
-spot_coords <- parse_spot_names(colnames(data))
+# Parse spot coordinates (physical units for circular)
+coords <- data.frame(
+  x = visium$coords$coordinate_x_um,
+  y = visium$coords$coordinate_y_um
+)
 
-# Compute pairwise Moran's I (dense W)
-result <- pairwise_moran(data, spot_coords, max_radius = 3)
+# Compute pairwise Moran's I with circular weights (default)
+result <- pairwise_moran(data, coords, radius = 200, sigma = 100)
 
-# Compute with sparse W (memory efficient)
-result <- pairwise_moran(data, spot_coords, max_radius = 3, sparse_W = TRUE)
-result[1:5, 1:5]
+# Use grid-based weights (legacy)
+grid_coords <- parse_spot_names(colnames(data))
+result <- pairwise_moran(data, grid_coords, weight_type = "grid", max_radius = 3)
 }
 
 }

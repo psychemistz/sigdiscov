@@ -225,12 +225,14 @@ permutation_test_cpp <- function(z_f, lag_g, metric, n_perm) {
 #' @param W Sparse weight matrix (n_obs x n_obs) for computing spatial lags
 #' @param metric String: "moran" or "ind"
 #' @param n_perm Number of permutations (default: 999)
+#' @param weight_sum Sum of weights for normalization. If <= 0, uses n_obs.
 #'
 #' @return DataFrame with columns:
 #'   - gene_idx: Gene index (1-based)
-#'   - I_obs: Observed statistic
+#'   - I_obs: Observed statistic (Moran's I or I_ND)
 #'   - p_value: Two-sided p-value
 #'   - z_score: Z-score relative to null
+#'   - null_sd: Standard deviation of the null distribution
 #'
 #' @details
 #' Key optimizations:
@@ -243,8 +245,75 @@ permutation_test_cpp <- function(z_f, lag_g, metric, n_perm) {
 #' processes approximately 20 million permutation statistics.
 #'
 #' @export
-batch_permutation_test_cpp <- function(z_f, Z_g, W, metric, n_perm) {
-    .Call(`_sigdiscov_batch_permutation_test_cpp`, z_f, Z_g, W, metric, n_perm)
+batch_permutation_test_cpp <- function(z_f, Z_g, W, metric, n_perm, weight_sum = -1.0) {
+    .Call(`_sigdiscov_batch_permutation_test_cpp`, z_f, Z_g, W, metric, n_perm, weight_sum)
+}
+
+#' All-Pairs Permutation Test for Pairwise Moran's I
+#'
+#' Fast C++ implementation of permutation testing for the full pairwise
+#' Moran's I matrix. This function is called by the R wrapper moran_permutation_test().
+#'
+#' @param data_z Z-normalized expression matrix (genes x spots)
+#' @param W Dense weight matrix (spots x spots)
+#' @param S0 Sum of all weights
+#' @param n_perm Number of permutations
+#' @param seed Random seed for reproducibility (0 = use random seed)
+#' @param verbose Print progress messages
+#'
+#' @return List containing:
+#'   - sum: Sum of Moran's I across permutations
+#'   - sum_sq: Sum of squared Moran's I
+#'   - count_extreme: Count of permutations with |I_perm| >= |I_obs|
+#'   - observed: Observed Moran's I matrix
+#'
+#' @keywords internal
+allpairs_permutation_test_cpp <- function(data_z, W, S0, n_perm, seed = 0L, verbose = TRUE) {
+    .Call(`_sigdiscov_allpairs_permutation_test_cpp`, data_z, W, S0, n_perm, seed, verbose)
+}
+
+#' Fast Pairwise Moran's I Computation
+#'
+#' Computes pairwise Moran's I for all gene pairs using optimized BLAS
+#' matrix operations.
+#'
+#' @param data_z Z-normalized expression matrix (genes x spots)
+#' @param W Weight matrix (spots x spots)
+#' @param S0 Sum of all weights
+#'
+#' @return Moran's I matrix (genes x genes)
+#'
+#' @keywords internal
+pairwise_moran_matrix_cpp <- function(data_z, W, S0) {
+    .Call(`_sigdiscov_pairwise_moran_matrix_cpp`, data_z, W, S0)
+}
+
+#' Z-Normalize Expression Matrix
+#'
+#' Z-normalizes each row (gene) of the expression matrix.
+#'
+#' @param X Expression matrix (genes x spots)
+#'
+#' @return Z-normalized matrix
+#'
+#' @keywords internal
+z_normalize_matrix_cpp <- function(X) {
+    .Call(`_sigdiscov_z_normalize_matrix_cpp`, X)
+}
+
+#' Univariate Moran's I for Each Gene
+#'
+#' Computes univariate Moran's I for each gene (diagonal of pairwise matrix).
+#'
+#' @param data_z Z-normalized expression matrix (genes x spots)
+#' @param W Weight matrix (spots x spots)
+#' @param S0 Sum of all weights
+#'
+#' @return Vector of Moran's I values
+#'
+#' @keywords internal
+single_gene_moran_cpp <- function(data_z, W, S0) {
+    .Call(`_sigdiscov_single_gene_moran_cpp`, data_z, W, S0)
 }
 
 #' Row-Normalize Sparse Matrix
@@ -283,6 +352,54 @@ create_gaussian_weights_cpp <- function(sender_coords, receiver_coords, radius, 
 #' @export
 create_gaussian_ring_weights_cpp <- function(coords, outer_radius, inner_radius, sigma = -1.0) {
     .Call(`_sigdiscov_create_gaussian_ring_weights_cpp`, coords, outer_radius, inner_radius, sigma)
+}
+
+#' Create Circular RBF Weight Matrix
+#'
+#' Computes a sparse weight matrix using RBF kernel with circular (Euclidean)
+#' distance cutoff. This matches the SpaCET calWeights behavior.
+#'
+#' @param coords Spot coordinates matrix (n x 2), physical units (e.g., micrometers)
+#' @param radius Distance cutoff. Only spots within this radius are connected.
+#' @param sigma RBF kernel bandwidth. Default: 100.
+#' @param include_self Include self-connections (diagonal). Default: FALSE.
+#'
+#' @return A list containing:
+#'   \item{W}{Sparse weight matrix (n x n), NOT row-normalized}
+#'   \item{weight_sum}{Sum of all weights (S0 for Moran's I normalization)}
+#'
+#' @details
+#' The weight is computed as:
+#' \deqn{w_{ij} = \exp\left(-\frac{d_{ij}^2}{2\sigma^2}\right) \text{ if } d_{ij} \leq r}
+#'
+#' where \eqn{d_{ij}} is the Euclidean distance between spots i and j.
+#'
+#' This function is designed to match SpaCET's calWeights behavior for
+#' spatial correlation analysis.
+#'
+#' @export
+create_circular_weights_cpp <- function(coords, radius, sigma = 100.0, include_self = FALSE) {
+    .Call(`_sigdiscov_create_circular_weights_cpp`, coords, radius, sigma, include_self)
+}
+
+#' Create Circular RBF Weight Matrix (Dense Version)
+#'
+#' Same as create_circular_weights_cpp but returns a dense matrix.
+#' Useful when sparsity is low or for compatibility with functions
+#' expecting dense matrices.
+#'
+#' @param coords Spot coordinates matrix (n x 2)
+#' @param radius Distance cutoff
+#' @param sigma RBF kernel bandwidth. Default: 100.
+#' @param include_self Include self-connections. Default: FALSE.
+#'
+#' @return A list containing:
+#'   \item{W}{Dense weight matrix (n x n)}
+#'   \item{weight_sum}{Sum of all weights}
+#'
+#' @export
+create_circular_weights_dense_cpp <- function(coords, radius, sigma = 100.0, include_self = FALSE) {
+    .Call(`_sigdiscov_create_circular_weights_dense_cpp`, coords, radius, sigma, include_self)
 }
 
 #' Create Binary Weight Matrix for Visium

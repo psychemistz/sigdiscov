@@ -10,6 +10,7 @@ batch_permutation_test(
   W,
   metric = c("moran", "ind"),
   n_perm = 999L,
+  weight_sum = NULL,
   seed = NULL
 )
 }
@@ -25,15 +26,19 @@ genes in columns.}
 
 \item{n_perm}{Integer. Number of permutations (default: 999).}
 
+\item{weight_sum}{Numeric. Sum of weights for normalization. If NULL or <= 0,
+uses n_obs for normalization (default: NULL).}
+
 \item{seed}{Integer. Random seed for reproducibility (optional).}
 }
 \value{
 A data.frame with columns:
 \describe{
 \item{gene_idx}{Gene index (1-based)}
-\item{I_obs}{Observed statistic}
+\item{I_obs}{Observed statistic (Moran's I or I_ND)}
 \item{p_value}{Two-sided p-value (bounded between 0 and 1)}
 \item{z_score}{Z-score relative to null}
+\item{null_sd}{Standard deviation of the null distribution}
 }
 }
 \description{

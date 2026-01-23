@@ -88,8 +88,9 @@ create_weights_visium <- function(coords, radius, type = c("gaussian", "binary")
     }
 
     # Create weight matrix (same as pairwise_moran uses internally)
-    W_result <- cpp_create_weight_matrix(spot_row, spot_col, distance,
-                                          max_radius, include_self)
+    # Use sparse version for memory efficiency and compatibility with permutation tests
+    W_result <- cpp_create_weight_matrix_sparse(spot_row, spot_col, distance,
+                                                 max_radius, include_self)
 
     return(list(W = W_result$W, weight_sum = W_result$weight_sum))
 }
@@ -164,4 +165,155 @@ create_directional_weights_visium <- function(sender_coords, receiver_coords,
         as.matrix(receiver_coords),
         radius
     )
+}
+
+
+#' Create Circular RBF Weight Matrix for Visium
+#'
+#' Creates a spatial weight matrix using RBF kernel with circular (Euclidean)
+#' distance cutoff. This matches the SpaCET calWeights behavior for spatial
+#' correlation analysis.
+#'
+#' @param coords Spot coordinates. Can be:
+#'   - A matrix with columns for x/y coordinates (in physical units like micrometers)
+#'   - A data frame with columns 'x' and 'y', or 'coordinate_x_um' and 'coordinate_y_um'
+#' @param radius Distance cutoff in the same units as coords. Only spots within
+#'   this radius are connected. For Visium, typical values are 100-500 um.
+#' @param sigma RBF kernel bandwidth. Default: 100. Controls distance decay rate.
+#' @param include_self Include self-connections (diagonal). Default: FALSE.
+#' @param sparse Return sparse matrix (TRUE) or dense matrix (FALSE). Default: TRUE.
+#'
+#' @return A list with components:
+#'   \item{W}{Weight matrix (sparse or dense)}
+#'   \item{weight_sum}{Sum of all weights (S0 for Moran's I normalization)}
+#'
+#' @details
+#' The weight between spots i and j is computed as:
+#' \deqn{w_{ij} = \exp\left(-\frac{d_{ij}^2}{2\sigma^2}\right) \text{ if } d_{ij} \leq r}
+#'
+#' where \eqn{d_{ij}} is the Euclidean distance.
+#'
+#' This is the recommended weight function for spatial correlation analysis as it:
+#' - Uses circular (Euclidean) distance instead of rectangular grid
+#' - Applies continuous distance decay via RBF kernel
+#' - Is consistent with SpaCET's approach
+#'
+#' @examples
+#' \dontrun{
+#' # Load Visium data with physical coordinates
+#' coords <- data.frame(
+#'   x = visium_data$coords$coordinate_x_um,
+#'   y = visium_data$coords$coordinate_y_um
+#' )
+#'
+#' # Create weight matrix with 200um radius
+#' W_result <- create_circular_weights_visium(coords, radius = 200, sigma = 100)
+#'
+#' # Use for pairwise Moran's I
+#' result <- pairwise_moran_custom(data, W_result$W)
+#' }
+#'
+#' @seealso \code{\link{create_weights_visium}}, \code{\link{pairwise_moran_custom}}
+#'
+#' @export
+create_circular_weights_visium <- function(coords,
+                                            radius,
+                                            sigma = 100,
+                                            include_self = FALSE,
+                                            sparse = TRUE) {
+    # Parse coordinates
+    if (is.data.frame(coords)) {
+        if ("coordinate_x_um" %in% names(coords) && "coordinate_y_um" %in% names(coords)) {
+            coord_mat <- as.matrix(coords[, c("coordinate_x_um", "coordinate_y_um")])
+        } else if ("x" %in% names(coords) && "y" %in% names(coords)) {
+            coord_mat <- as.matrix(coords[, c("x", "y")])
+        } else {
+            coord_mat <- as.matrix(coords[, 1:2])
+        }
+    } else {
+        coord_mat <- as.matrix(coords)
+    }
+
+    if (ncol(coord_mat) != 2) {
+        stop("coords must have exactly 2 columns (x, y coordinates)")
+    }
+
+    # Call C++ function
+    if (sparse) {
+        result <- create_circular_weights_cpp(coord_mat, radius, sigma, include_self)
+    } else {
+        result <- create_circular_weights_dense_cpp(coord_mat, radius, sigma, include_self)
+    }
+
+    result
+}
+
+
+#' Compute Pairwise Moran's I with Circular Weights
+#'
+#' Convenience function that creates circular RBF weights and computes
+#' pairwise Moran's I in one step. Matches the SpaCET workflow.
+#'
+#' @param data Gene expression matrix (genes x spots). Will be z-normalized.
+#' @param coords Spot coordinates (see \code{\link{create_circular_weights_visium}}).
+#' @param radius Distance cutoff for weight matrix.
+#' @param sigma RBF kernel bandwidth. Default: 100.
+#' @param include_self Include self-connections. Default: FALSE.
+#' @param mode Calculation mode: "paired" (all pairs) or "single" (univariate).
+#' @param verbose Print progress. Default: TRUE.
+#'
+#' @return A list containing:
+#'   \item{moran}{Moran's I matrix (if mode = "paired") or vector (if mode = "single")}
+#'   \item{gene_names}{Names of genes}
+#'   \item{weight_sum}{Sum of weights used (S0)}
+#'   \item{W}{The weight matrix used}
+#'
+#' @examples
+#' \dontrun{
+#' # One-step pairwise Moran's I with circular weights
+#' result <- pairwise_moran_circular(
+#'   data_vst,
+#'   coords,
+#'   radius = 200,
+#'   sigma = 100
+#' )
+#' }
+#'
+#' @seealso \code{\link{create_circular_weights_visium}}, \code{\link{pairwise_moran_custom}}
+#'
+#' @export
+pairwise_moran_circular <- function(data,
+                                     coords,
+                                     radius,
+                                     sigma = 100,
+                                     include_self = FALSE,
+                                     mode = "paired",
+                                     verbose = TRUE) {
+    # Create circular weight matrix
+    if (verbose) message("Creating circular RBF weight matrix...")
+    W_result <- create_circular_weights_visium(
+        coords, radius, sigma, include_self, sparse = FALSE
+    )
+
+    if (W_result$weight_sum == 0) {
+        stop("Weight matrix has no non-zero weights. Try increasing radius.")
+    }
+
+    if (verbose) {
+        message(sprintf("  Weight sum (S0): %.4f", W_result$weight_sum))
+        message(sprintf("  Non-zero weights: %d", sum(W_result$W > 0)))
+    }
+
+    # Compute Moran's I using custom weights
+    result <- pairwise_moran_custom(
+        data, W_result$W,
+        normalize = FALSE,
+        mode = mode,
+        verbose = verbose
+    )
+
+    # Add weight matrix to result
+    result$W <- W_result$W
+
+    result
 }

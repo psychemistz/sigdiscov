@@ -4,7 +4,7 @@
 \alias{batch_permutation_test_cpp}
 \title{Batch Permutation Test for Multiple Genes}
 \usage{
-batch_permutation_test_cpp(z_f, Z_g, W, metric, n_perm)
+batch_permutation_test_cpp(z_f, Z_g, W, metric, n_perm, weight_sum = -1)
 }
 \arguments{
 \item{z_f}{Standardized factor expression vector (length n_obs)}
@@ -16,14 +16,17 @@ batch_permutation_test_cpp(z_f, Z_g, W, metric, n_perm)
 \item{metric}{String: "moran" or "ind"}
 
 \item{n_perm}{Number of permutations (default: 999)}
+
+\item{weight_sum}{Sum of weights for normalization. If <= 0, uses n_obs.}
 }
 \value{
 DataFrame with columns:
 \itemize{
 \item gene_idx: Gene index (1-based)
-\item I_obs: Observed statistic
+\item I_obs: Observed statistic (Moran's I or I_ND)
 \item p_value: Two-sided p-value
 \item z_score: Z-score relative to null
+\item null_sd: Standard deviation of the null distribution
 }
 }
 \description{

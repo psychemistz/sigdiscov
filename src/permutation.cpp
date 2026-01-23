@@ -1,6 +1,9 @@
 // [[Rcpp::depends(RcppArmadillo)]]
 #include <RcppArmadillo.h>
 #include <cmath>
+#include <random>
+#include <algorithm>
+#include <numeric>
 
 using namespace Rcpp;
 
@@ -147,12 +150,14 @@ List permutation_test_cpp(
 //' @param W Sparse weight matrix (n_obs x n_obs) for computing spatial lags
 //' @param metric String: "moran" or "ind"
 //' @param n_perm Number of permutations (default: 999)
+//' @param weight_sum Sum of weights for normalization. If <= 0, uses n_obs.
 //'
 //' @return DataFrame with columns:
 //'   - gene_idx: Gene index (1-based)
-//'   - I_obs: Observed statistic
+//'   - I_obs: Observed statistic (Moran's I or I_ND)
 //'   - p_value: Two-sided p-value
 //'   - z_score: Z-score relative to null
+//'   - null_sd: Standard deviation of the null distribution
 //'
 //' @details
 //' Key optimizations:
@@ -171,10 +176,14 @@ DataFrame batch_permutation_test_cpp(
     const arma::mat& Z_g,
     const arma::sp_mat& W,
     const std::string& metric,
-    int n_perm
+    int n_perm,
+    double weight_sum = -1.0
 ) {
     int n_genes = Z_g.n_cols;
     int n_obs = z_f.n_elem;
+
+    // Use n_obs for normalization if weight_sum not provided
+    double normalizer = (weight_sum > 0) ? weight_sum : static_cast<double>(n_obs);
 
     // =========================================================================
     // STEP 1: Pre-generate ALL permutation indices (key optimization!)
@@ -192,6 +201,7 @@ DataFrame batch_permutation_test_cpp(
     NumericVector out_I_obs(n_genes);
     NumericVector out_p_value(n_genes);
     NumericVector out_z_score(n_genes);
+    NumericVector out_null_sd(n_genes);
 
     // =========================================================================
     // STEP 2: Process each gene
@@ -211,13 +221,14 @@ DataFrame batch_permutation_test_cpp(
             out_I_obs[g] = NA_REAL;
             out_p_value[g] = NA_REAL;
             out_z_score[g] = NA_REAL;
+            out_null_sd[g] = NA_REAL;
             continue;
         }
 
         // Compute observed statistic
         double I_obs;
         if (metric == "moran") {
-            I_obs = arma::dot(z_f, lag_g) / static_cast<double>(n_obs);
+            I_obs = arma::dot(z_f, lag_g) / normalizer;
         } else {
             I_obs = arma::dot(z_f, lag_g) / (norm_f * norm_lag);
         }
@@ -234,7 +245,7 @@ DataFrame batch_permutation_test_cpp(
             // Compute permuted statistic
             double I_perm;
             if (metric == "moran") {
-                I_perm = arma::dot(z_f_perm, lag_g) / static_cast<double>(n_obs);
+                I_perm = arma::dot(z_f_perm, lag_g) / normalizer;
             } else {
                 I_perm = arma::dot(z_f_perm, lag_g) / (norm_f * norm_lag);
             }
@@ -260,12 +271,208 @@ DataFrame batch_permutation_test_cpp(
         out_I_obs[g] = I_obs;
         out_p_value[g] = p_value;
         out_z_score[g] = (I_obs - null_mean) / null_sd;
+        out_null_sd[g] = null_sd;
     }
 
     return DataFrame::create(
         Named("gene_idx") = seq(1, n_genes),
         Named("I_obs") = out_I_obs,
         Named("p_value") = out_p_value,
-        Named("z_score") = out_z_score
+        Named("z_score") = out_z_score,
+        Named("null_sd") = out_null_sd
     );
+}
+
+
+// =============================================================================
+// ALL-PAIRS PERMUTATION TESTING (Pairwise Moran's I Matrix)
+// =============================================================================
+
+//' All-Pairs Permutation Test for Pairwise Moran's I
+//'
+//' Fast C++ implementation of permutation testing for the full pairwise
+//' Moran's I matrix. This function is called by the R wrapper moran_permutation_test().
+//'
+//' @param data_z Z-normalized expression matrix (genes x spots)
+//' @param W Dense weight matrix (spots x spots)
+//' @param S0 Sum of all weights
+//' @param n_perm Number of permutations
+//' @param seed Random seed for reproducibility (0 = use random seed)
+//' @param verbose Print progress messages
+//'
+//' @return List containing:
+//'   - sum: Sum of Moran's I across permutations
+//'   - sum_sq: Sum of squared Moran's I
+//'   - count_extreme: Count of permutations with |I_perm| >= |I_obs|
+//'   - observed: Observed Moran's I matrix
+//'
+//' @keywords internal
+// [[Rcpp::export]]
+List allpairs_permutation_test_cpp(
+    const arma::mat& data_z,
+    const arma::mat& W,
+    double S0,
+    int n_perm,
+    unsigned int seed = 0,
+    bool verbose = true
+) {
+    int n_genes = data_z.n_rows;
+    int n_spots = data_z.n_cols;
+
+    // Compute observed Moran's I: M = Z * W * Z^T / S0
+    arma::mat observed = (data_z * W * data_z.t()) / S0;
+    arma::mat abs_observed = arma::abs(observed);
+
+    // Initialize accumulators
+    arma::mat perm_sum(n_genes, n_genes, arma::fill::zeros);
+    arma::mat perm_sum_sq(n_genes, n_genes, arma::fill::zeros);
+    arma::mat count_extreme(n_genes, n_genes, arma::fill::zeros);
+
+    // Random number generator
+    std::mt19937 gen;
+    if (seed == 0) {
+        std::random_device rd;
+        gen.seed(rd());
+    } else {
+        gen.seed(seed);
+    }
+
+    // Create permutation indices
+    std::vector<int> indices(n_spots);
+    std::iota(indices.begin(), indices.end(), 0);
+
+    // Progress reporting
+    int report_interval = std::max(1, n_perm / 10);
+
+    // Temporary matrix for permuted data
+    arma::mat data_perm(n_genes, n_spots);
+
+    for (int p = 0; p < n_perm; p++) {
+        // Progress reporting
+        if (verbose && ((p + 1) % report_interval == 0)) {
+            Rcpp::Rcout << "  Permutation " << (p + 1)
+                        << " / " << n_perm << std::endl;
+        }
+
+        // Check for user interrupt
+        if ((p + 1) % 100 == 0) {
+            Rcpp::checkUserInterrupt();
+        }
+
+        // Shuffle indices
+        std::shuffle(indices.begin(), indices.end(), gen);
+
+        // Permute data columns
+        for (int j = 0; j < n_spots; j++) {
+            data_perm.col(j) = data_z.col(indices[j]);
+        }
+
+        // Compute permuted Moran's I
+        arma::mat moran_perm = (data_perm * W * data_perm.t()) / S0;
+
+        // Update running sum and sum of squares
+        perm_sum += moran_perm;
+        perm_sum_sq += moran_perm % moran_perm;  // element-wise square
+
+        // Count extreme values (two-sided test)
+        arma::mat abs_perm = arma::abs(moran_perm);
+        count_extreme += arma::conv_to<arma::mat>::from(abs_perm >= abs_observed);
+    }
+
+    return List::create(
+        Named("sum") = perm_sum,
+        Named("sum_sq") = perm_sum_sq,
+        Named("count_extreme") = count_extreme,
+        Named("observed") = observed
+    );
+}
+
+
+//' Fast Pairwise Moran's I Computation
+//'
+//' Computes pairwise Moran's I for all gene pairs using optimized BLAS
+//' matrix operations.
+//'
+//' @param data_z Z-normalized expression matrix (genes x spots)
+//' @param W Weight matrix (spots x spots)
+//' @param S0 Sum of all weights
+//'
+//' @return Moran's I matrix (genes x genes)
+//'
+//' @keywords internal
+// [[Rcpp::export]]
+arma::mat pairwise_moran_matrix_cpp(
+    const arma::mat& data_z,
+    const arma::mat& W,
+    double S0
+) {
+    // M = Z * W * Z^T / S0
+    arma::mat ZW = data_z * W;
+    arma::mat M = ZW * data_z.t() / S0;
+
+    return M;
+}
+
+
+//' Z-Normalize Expression Matrix
+//'
+//' Z-normalizes each row (gene) of the expression matrix.
+//'
+//' @param X Expression matrix (genes x spots)
+//'
+//' @return Z-normalized matrix
+//'
+//' @keywords internal
+// [[Rcpp::export]]
+arma::mat z_normalize_matrix_cpp(const arma::mat& X) {
+    int n_genes = X.n_rows;
+    int n_spots = X.n_cols;
+
+    arma::mat Z(n_genes, n_spots);
+
+    for (int g = 0; g < n_genes; g++) {
+        arma::rowvec row = X.row(g);
+        double mu = arma::mean(row);
+        double sd = arma::stddev(row, 0);  // 0 = normalize by n-1
+
+        if (sd < 1e-10) {
+            // Constant expression - set to zeros
+            Z.row(g).zeros();
+        } else {
+            Z.row(g) = (row - mu) / sd;
+        }
+    }
+
+    return Z;
+}
+
+
+//' Univariate Moran's I for Each Gene
+//'
+//' Computes univariate Moran's I for each gene (diagonal of pairwise matrix).
+//'
+//' @param data_z Z-normalized expression matrix (genes x spots)
+//' @param W Weight matrix (spots x spots)
+//' @param S0 Sum of all weights
+//'
+//' @return Vector of Moran's I values
+//'
+//' @keywords internal
+// [[Rcpp::export]]
+arma::vec single_gene_moran_cpp(
+    const arma::mat& data_z,
+    const arma::mat& W,
+    double S0
+) {
+    int n_genes = data_z.n_rows;
+    arma::vec moran_i(n_genes);
+
+    for (int g = 0; g < n_genes; g++) {
+        arma::rowvec z = data_z.row(g);
+        // I = z * W * z^T / S0
+        double I = arma::as_scalar(z * W * z.t()) / S0;
+        moran_i(g) = I;
+    }
+
+    return moran_i;
 }
