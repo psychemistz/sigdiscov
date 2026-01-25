@@ -289,6 +289,67 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// find_neighbors_radius_cpp
+List find_neighbors_radius_cpp(const arma::mat& coords, double radius, int max_neighbors);
+RcppExport SEXP _sigdiscov_find_neighbors_radius_cpp(SEXP coordsSEXP, SEXP radiusSEXP, SEXP max_neighborsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type coords(coordsSEXP);
+    Rcpp::traits::input_parameter< double >::type radius(radiusSEXP);
+    Rcpp::traits::input_parameter< int >::type max_neighbors(max_neighborsSEXP);
+    rcpp_result_gen = Rcpp::wrap(find_neighbors_radius_cpp(coords, radius, max_neighbors));
+    return rcpp_result_gen;
+END_RCPP
+}
+// pairwise_moran_native_cpp
+List pairwise_moran_native_cpp(arma::mat data, const arma::mat& coords, double radius, double sigma, int max_neighbors, bool verbose);
+RcppExport SEXP _sigdiscov_pairwise_moran_native_cpp(SEXP dataSEXP, SEXP coordsSEXP, SEXP radiusSEXP, SEXP sigmaSEXP, SEXP max_neighborsSEXP, SEXP verboseSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type coords(coordsSEXP);
+    Rcpp::traits::input_parameter< double >::type radius(radiusSEXP);
+    Rcpp::traits::input_parameter< double >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< int >::type max_neighbors(max_neighborsSEXP);
+    Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(pairwise_moran_native_cpp(data, coords, radius, sigma, max_neighbors, verbose));
+    return rcpp_result_gen;
+END_RCPP
+}
+// pairwise_moran_chunked_cpp
+List pairwise_moran_chunked_cpp(arma::mat data, const arma::mat& coords, double radius, double sigma, int chunk_size, bool verbose);
+RcppExport SEXP _sigdiscov_pairwise_moran_chunked_cpp(SEXP dataSEXP, SEXP coordsSEXP, SEXP radiusSEXP, SEXP sigmaSEXP, SEXP chunk_sizeSEXP, SEXP verboseSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type coords(coordsSEXP);
+    Rcpp::traits::input_parameter< double >::type radius(radiusSEXP);
+    Rcpp::traits::input_parameter< double >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< int >::type chunk_size(chunk_sizeSEXP);
+    Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(pairwise_moran_chunked_cpp(data, coords, radius, sigma, chunk_size, verbose));
+    return rcpp_result_gen;
+END_RCPP
+}
+// pairwise_moran_streaming_cpp
+List pairwise_moran_streaming_cpp(arma::mat data, const arma::mat& coords, double radius, double sigma, int n_threads, bool verbose);
+RcppExport SEXP _sigdiscov_pairwise_moran_streaming_cpp(SEXP dataSEXP, SEXP coordsSEXP, SEXP radiusSEXP, SEXP sigmaSEXP, SEXP n_threadsSEXP, SEXP verboseSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type coords(coordsSEXP);
+    Rcpp::traits::input_parameter< double >::type radius(radiusSEXP);
+    Rcpp::traits::input_parameter< double >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< int >::type n_threads(n_threadsSEXP);
+    Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(pairwise_moran_streaming_cpp(data, coords, radius, sigma, n_threads, verbose));
+    return rcpp_result_gen;
+END_RCPP
+}
 // permutation_test_cpp
 List permutation_test_cpp(const arma::vec& z_f, const arma::vec& lag_g, const std::string& metric, int n_perm);
 RcppExport SEXP _sigdiscov_permutation_test_cpp(SEXP z_fSEXP, SEXP lag_gSEXP, SEXP metricSEXP, SEXP n_permSEXP) {
@@ -413,6 +474,38 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// create_weights_from_neighbors_cpp
+List create_weights_from_neighbors_cpp(const arma::imat& nn_idx, const arma::mat& nn_dist, double sigma, double radius, bool row_normalize, double self_weight);
+RcppExport SEXP _sigdiscov_create_weights_from_neighbors_cpp(SEXP nn_idxSEXP, SEXP nn_distSEXP, SEXP sigmaSEXP, SEXP radiusSEXP, SEXP row_normalizeSEXP, SEXP self_weightSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::imat& >::type nn_idx(nn_idxSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type nn_dist(nn_distSEXP);
+    Rcpp::traits::input_parameter< double >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< double >::type radius(radiusSEXP);
+    Rcpp::traits::input_parameter< bool >::type row_normalize(row_normalizeSEXP);
+    Rcpp::traits::input_parameter< double >::type self_weight(self_weightSEXP);
+    rcpp_result_gen = Rcpp::wrap(create_weights_from_neighbors_cpp(nn_idx, nn_dist, sigma, radius, row_normalize, self_weight));
+    return rcpp_result_gen;
+END_RCPP
+}
+// pairwise_moran_from_neighbors_cpp
+List pairwise_moran_from_neighbors_cpp(arma::mat data, const arma::imat& nn_idx, const arma::mat& nn_dist, double sigma, double radius, bool verbose);
+RcppExport SEXP _sigdiscov_pairwise_moran_from_neighbors_cpp(SEXP dataSEXP, SEXP nn_idxSEXP, SEXP nn_distSEXP, SEXP sigmaSEXP, SEXP radiusSEXP, SEXP verboseSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< const arma::imat& >::type nn_idx(nn_idxSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type nn_dist(nn_distSEXP);
+    Rcpp::traits::input_parameter< double >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< double >::type radius(radiusSEXP);
+    Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(pairwise_moran_from_neighbors_cpp(data, nn_idx, nn_dist, sigma, radius, verbose));
+    return rcpp_result_gen;
+END_RCPP
+}
 // create_circular_weights_cpp
 List create_circular_weights_cpp(const arma::mat& coords, double radius, double sigma, bool include_self);
 RcppExport SEXP _sigdiscov_create_circular_weights_cpp(SEXP coordsSEXP, SEXP radiusSEXP, SEXP sigmaSEXP, SEXP include_selfSEXP) {
@@ -501,6 +594,10 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sigdiscov_cpp_compute_moran_full_W_sparse", (DL_FUNC) &_sigdiscov_cpp_compute_moran_full_W_sparse, 9},
     {"_sigdiscov_cpp_pairwise_moran_custom", (DL_FUNC) &_sigdiscov_cpp_pairwise_moran_custom, 4},
     {"_sigdiscov_cpp_pairwise_moran_custom_sparse", (DL_FUNC) &_sigdiscov_cpp_pairwise_moran_custom_sparse, 4},
+    {"_sigdiscov_find_neighbors_radius_cpp", (DL_FUNC) &_sigdiscov_find_neighbors_radius_cpp, 3},
+    {"_sigdiscov_pairwise_moran_native_cpp", (DL_FUNC) &_sigdiscov_pairwise_moran_native_cpp, 6},
+    {"_sigdiscov_pairwise_moran_chunked_cpp", (DL_FUNC) &_sigdiscov_pairwise_moran_chunked_cpp, 6},
+    {"_sigdiscov_pairwise_moran_streaming_cpp", (DL_FUNC) &_sigdiscov_pairwise_moran_streaming_cpp, 6},
     {"_sigdiscov_permutation_test_cpp", (DL_FUNC) &_sigdiscov_permutation_test_cpp, 4},
     {"_sigdiscov_batch_permutation_test_cpp", (DL_FUNC) &_sigdiscov_batch_permutation_test_cpp, 6},
     {"_sigdiscov_allpairs_permutation_test_cpp", (DL_FUNC) &_sigdiscov_allpairs_permutation_test_cpp, 6},
@@ -510,6 +607,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sigdiscov_sparse_row_normalize_cpp", (DL_FUNC) &_sigdiscov_sparse_row_normalize_cpp, 1},
     {"_sigdiscov_create_gaussian_weights_cpp", (DL_FUNC) &_sigdiscov_create_gaussian_weights_cpp, 6},
     {"_sigdiscov_create_gaussian_ring_weights_cpp", (DL_FUNC) &_sigdiscov_create_gaussian_ring_weights_cpp, 4},
+    {"_sigdiscov_create_weights_from_neighbors_cpp", (DL_FUNC) &_sigdiscov_create_weights_from_neighbors_cpp, 6},
+    {"_sigdiscov_pairwise_moran_from_neighbors_cpp", (DL_FUNC) &_sigdiscov_pairwise_moran_from_neighbors_cpp, 6},
     {"_sigdiscov_create_circular_weights_cpp", (DL_FUNC) &_sigdiscov_create_circular_weights_cpp, 4},
     {"_sigdiscov_create_circular_weights_dense_cpp", (DL_FUNC) &_sigdiscov_create_circular_weights_dense_cpp, 4},
     {"_sigdiscov_create_binary_weights_cpp", (DL_FUNC) &_sigdiscov_create_binary_weights_cpp, 3},

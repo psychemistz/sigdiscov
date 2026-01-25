@@ -1,0 +1,10 @@
+# Makevars.win for Windows (Rtools)
+
+CXX_STD = CXX17
+
+# Armadillo 64-bit word support for large matrices
+PKG_CXXFLAGS = -DARMA_64BIT_WORD
+
+# OpenMP support for Windows (Rtools GCC supports OpenMP)
+PKG_CXXFLAGS += $(SHLIB_OPENMP_CXXFLAGS)
+PKG_LIBS = $(SHLIB_OPENMP_CXXFLAGS) $(LAPACK_LIBS) $(BLAS_LIBS)

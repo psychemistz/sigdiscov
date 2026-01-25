@@ -50,3 +50,166 @@ create_ring_weights_sc <- function(coords, outer_radius, inner_radius,
         sigma
     )
 }
+
+
+#' Create Scalable Weight Matrix for Large Single-Cell Datasets
+#'
+#' Uses native C++ KD-tree (nanoflann) for efficient neighbor search to create
+#' sparse weight matrices for datasets with >10,000 cells. Falls back to
+#' brute-force for smaller datasets.
+#'
+#' @param coords Cell coordinates (n x 2 matrix)
+#' @param radius Radius for neighbor search
+#' @param sigma Gaussian sigma (default: radius/3)
+#' @param max_neighbors Maximum neighbors per cell (default: 200)
+#' @param threshold Cell count threshold for using KD-tree (default: 10000)
+#' @param verbose Print progress messages (default: TRUE)
+#' @return List with W (sparse weight matrix), weight_sum, and n_edges
+#'
+#' @details
+#' For datasets with more than \code{threshold} cells, uses nanoflann C++
+#' KD-tree for O(n log n) neighbor search instead of O(n²) brute-force.
+#' This enables analysis of datasets with hundreds of thousands of cells.
+#' No external R package dependencies required.
+#'
+#' @examples
+#' \dontrun{
+#' # Large CosMx dataset (~100k cells)
+#' coords <- as.matrix(meta[, c("x", "y")])
+#' W_result <- create_weights_sc_large(coords, radius = 50, sigma = 20)
+#' }
+#'
+#' @export
+create_weights_sc_large <- function(coords, radius, sigma = NULL,
+                                     max_neighbors = 200, threshold = 10000,
+                                     verbose = TRUE) {
+    coords <- as.matrix(coords)
+    n <- nrow(coords)
+
+    if (is.null(sigma)) {
+        sigma <- radius / 3
+    }
+
+    # For small datasets, use direct method
+    if (n <= threshold) {
+        if (verbose) message("Using direct method (n <= ", threshold, ")")
+        W <- create_weights_sc(coords, coords, radius, sigma = sigma)
+        return(list(W = W, weight_sum = sum(W), n_edges = length(W@x)))
+    }
+
+    # For large datasets, use native C++ KD-tree
+    if (verbose) message("Using native C++ KD-tree for neighbor search (n = ", n, ")")
+
+    # Find neighbors and build weight matrix using nanoflann
+    if (verbose) message("Finding neighbors within radius ", radius, "...")
+    t1 <- Sys.time()
+    nn <- find_neighbors_radius_cpp(coords, radius, max_neighbors)
+    t2 <- Sys.time()
+    if (verbose) message("Neighbor search: ", round(difftime(t2, t1, units = "secs"), 2), " sec")
+
+    # Create weight matrix from neighbors
+    if (verbose) message("Building sparse weight matrix...")
+    result <- create_weights_from_neighbors_cpp(
+        nn$nn.idx,
+        nn$nn.dists,
+        sigma,
+        radius,
+        row_normalize = TRUE,
+        self_weight = 0.0
+    )
+
+    if (verbose) {
+        message("W non-zeros: ", result$n_edges)
+        message("Avg neighbors/cell: ", round(result$n_edges / n, 1))
+    }
+
+    result
+}
+
+
+#' Compute Pairwise Moran's I for Large Single-Cell Datasets
+#'
+#' Scalable computation of pairwise Moran's I using native C++ KD-tree
+#' (nanoflann) for neighbor search. Handles datasets with hundreds of
+#' thousands of cells. No external R package dependencies required.
+#'
+#' @param data Gene expression matrix (genes x cells)
+#' @param coords Cell coordinates (n x 2 matrix)
+#' @param radius Radius for neighbor search
+#' @param sigma Gaussian sigma (default: radius/3)
+#' @param method Method to use: "streaming" (default, no neighbor limit) or
+#'        "matrix" (builds explicit W matrix with neighbor limit)
+#' @param max_neighbors Maximum neighbors per cell when method="matrix" (default: 200)
+#' @param verbose Print progress messages (default: TRUE)
+#' @return List with moran matrix, weight_sum, and n_edges
+#'
+#' @details
+#' Two methods are available:
+#' \itemize{
+#'   \item \code{"streaming"} (default): Computes spatial lag on-the-fly without
+#'     storing the weight matrix. No neighbor limit, memory efficient, fastest.
+#'   \item \code{"matrix"}: Builds explicit sparse weight matrix. Uses max_neighbors
+#'     limit to control memory usage.
+#' }
+#'
+#' Both methods use nanoflann (header-only C++ KD-tree) for O(n log n) neighbor
+#' search. No external R package dependencies required.
+#'
+#' @examples
+#' \dontrun{
+#' # CosMx dataset (~100k cells) - streaming (recommended)
+#' result <- pairwise_moran_sc_large(vst_data, coords, radius = 0.1)
+#'
+#' # With explicit W matrix and neighbor limit
+#' result <- pairwise_moran_sc_large(vst_data, coords, radius = 0.1,
+#'                                    method = "matrix", max_neighbors = 200)
+#' }
+#'
+#' @export
+pairwise_moran_sc_large <- function(data, coords, radius, sigma = NULL,
+                                     method = c("streaming", "matrix"),
+                                     max_neighbors = 200, verbose = TRUE) {
+    data <- as.matrix(data)
+    coords <- as.matrix(coords)
+    n <- nrow(coords)
+    method <- match.arg(method)
+
+    if (ncol(data) != n) {
+        stop("Number of columns in data (", ncol(data),
+             ") must match number of rows in coords (", n, ")")
+    }
+
+    if (is.null(sigma)) {
+        sigma <- radius / 3
+    }
+
+    # Choose implementation based on method
+    if (method == "streaming") {
+        # Streaming: no W matrix storage, no neighbor limit, fastest
+        result <- pairwise_moran_streaming_cpp(
+            data,
+            coords,
+            radius,
+            sigma,
+            verbose
+        )
+    } else {
+        # Matrix: builds explicit W with neighbor limit
+        result <- pairwise_moran_native_cpp(
+            data,
+            coords,
+            radius,
+            sigma,
+            max_neighbors,
+            verbose
+        )
+    }
+
+    # Add gene names
+    if (!is.null(rownames(data))) {
+        rownames(result$moran) <- rownames(data)
+        colnames(result$moran) <- rownames(data)
+    }
+
+    result
+}

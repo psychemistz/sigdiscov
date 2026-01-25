@@ -216,6 +216,79 @@ cpp_pairwise_moran_custom_sparse <- function(data, W, mode = 0L, verbose = TRUE)
     .Call(`_sigdiscov_cpp_pairwise_moran_custom_sparse`, data, W, mode, verbose)
 }
 
+#' Find Neighbors Within Radius Using KD-Tree (Native C++)
+#'
+#' Uses nanoflann for O(n log n) neighbor search. No R dependencies required.
+#'
+#' @param coords Cell coordinates (n x 2 matrix)
+#' @param radius Search radius
+#' @param max_neighbors Maximum neighbors to return per point (default: 200)
+#' @return List with nn_idx (1-indexed) and nn_dist matrices
+#' @export
+find_neighbors_radius_cpp <- function(coords, radius, max_neighbors = 200L) {
+    .Call(`_sigdiscov_find_neighbors_radius_cpp`, coords, radius, max_neighbors)
+}
+
+#' Compute Pairwise Moran's I for Large Datasets (Native C++)
+#'
+#' Complete native C++ implementation using nanoflann for neighbor search.
+#' No R package dependencies (RANN not required).
+#'
+#' @param data Gene expression matrix (genes x cells)
+#' @param coords Cell coordinates (n x 2 matrix)
+#' @param radius Radius for neighbor search
+#' @param sigma Gaussian sigma (default: radius/3)
+#' @param max_neighbors Maximum neighbors per cell (default: 200)
+#' @param verbose Print progress messages (default: TRUE)
+#' @return List with moran matrix, weight_sum, and n_edges
+#' @export
+pairwise_moran_native_cpp <- function(data, coords, radius, sigma = -1.0, max_neighbors = 200L, verbose = TRUE) {
+    .Call(`_sigdiscov_pairwise_moran_native_cpp`, data, coords, radius, sigma, max_neighbors, verbose)
+}
+
+#' Compute Pairwise Moran's I Using Chunked Dense Approach (No Neighbor Limit)
+#'
+#' Similar to Python GPU implementation: processes senders in chunks,
+#' computes dense distance matrix for each chunk, extracts sparse entries.
+#' No neighbor limit - finds ALL neighbors within radius.
+#'
+#' Two-pass approach for memory efficiency:
+#' - Pass 1: Compute row sums only (for normalization)
+#' - Pass 2: Extract normalized triplets and build sparse matrix
+#'
+#' @param data Gene expression matrix (genes x cells)
+#' @param coords Cell coordinates (n x 2 matrix)
+#' @param radius Radius for neighbor search
+#' @param sigma Gaussian sigma (default: radius/3)
+#' @param chunk_size Number of cells per chunk (default: 1000)
+#' @param verbose Print progress messages (default: TRUE)
+#' @return List with moran matrix, weight_sum, and n_edges
+#' @export
+pairwise_moran_chunked_cpp <- function(data, coords, radius, sigma = -1.0, chunk_size = 1000L, verbose = TRUE) {
+    .Call(`_sigdiscov_pairwise_moran_chunked_cpp`, data, coords, radius, sigma, chunk_size, verbose)
+}
+
+#' Compute Pairwise Moran's I with Streaming Lag (No Neighbor Limit, No W Storage)
+#'
+#' Best approach for CPU: uses KD-tree for O(n log n) neighbor search,
+#' computes spatial lag on-the-fly without storing weight matrix W.
+#' Unlimited neighbors without memory explosion.
+#'
+#' Memory usage: O(n_genes × n_cells) for data + lag matrices only.
+#' Uses OpenMP for parallel processing across cells.
+#'
+#' @param data Gene expression matrix (genes x cells)
+#' @param coords Cell coordinates (n x 2 matrix)
+#' @param radius Radius for neighbor search
+#' @param sigma Gaussian sigma (default: radius/3)
+#' @param n_threads Number of threads (default: 0 = auto)
+#' @param verbose Print progress messages (default: TRUE)
+#' @return List with moran matrix, weight_sum, and n_edges
+#' @export
+pairwise_moran_streaming_cpp <- function(data, coords, radius, sigma = -1.0, n_threads = 0L, verbose = TRUE) {
+    .Call(`_sigdiscov_pairwise_moran_streaming_cpp`, data, coords, radius, sigma, n_threads, verbose)
+}
+
 #' Permutation Test for Spatial Correlation (Single Gene)
 #'
 #' Tests H0: No spatial association between factor and gene expression.
@@ -387,6 +460,40 @@ create_gaussian_weights_cpp <- function(sender_coords, receiver_coords, radius, 
 #' @export
 create_gaussian_ring_weights_cpp <- function(coords, outer_radius, inner_radius, sigma = -1.0) {
     .Call(`_sigdiscov_create_gaussian_ring_weights_cpp`, coords, outer_radius, inner_radius, sigma)
+}
+
+#' Create Sparse Weight Matrix from Pre-computed Neighbors
+#'
+#' Efficiently creates weight matrix from pre-computed neighbor indices
+#' (e.g., from RANN k-NN search). Scales to millions of cells.
+#'
+#' @param nn_idx Neighbor index matrix (n x k) from RANN::nn2, 1-indexed
+#' @param nn_dist Neighbor distance matrix (n x k) from RANN::nn2
+#' @param sigma Gaussian sigma for weight computation
+#' @param radius Maximum distance cutoff (neighbors beyond this are ignored)
+#' @param row_normalize Whether to row-normalize weights (default: TRUE)
+#' @param self_weight Weight for self-connections (default: 0, no self)
+#' @return List with sparse weight matrix W and weight_sum
+#' @export
+create_weights_from_neighbors_cpp <- function(nn_idx, nn_dist, sigma, radius = -1.0, row_normalize = TRUE, self_weight = 0.0) {
+    .Call(`_sigdiscov_create_weights_from_neighbors_cpp`, nn_idx, nn_dist, sigma, radius, row_normalize, self_weight)
+}
+
+#' Compute Pairwise Moran's I from Pre-computed Neighbors (Scalable)
+#'
+#' Computes pairwise Moran's I for large single-cell datasets using
+#' pre-computed neighbors. Avoids O(n²) distance computation.
+#'
+#' @param data Gene expression matrix (genes x cells), will be z-normalized
+#' @param nn_idx Neighbor index matrix (n_cells x k) from RANN, 1-indexed
+#' @param nn_dist Neighbor distance matrix (n_cells x k) from RANN
+#' @param sigma Gaussian sigma for weights
+#' @param radius Maximum distance cutoff
+#' @param verbose Print progress messages
+#' @return List with moran matrix and weight_sum
+#' @export
+pairwise_moran_from_neighbors_cpp <- function(data, nn_idx, nn_dist, sigma, radius = -1.0, verbose = TRUE) {
+    .Call(`_sigdiscov_pairwise_moran_from_neighbors_cpp`, data, nn_idx, nn_dist, sigma, radius, verbose)
 }
 
 #' Create Circular RBF Weight Matrix

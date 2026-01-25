@@ -1,3 +1,13 @@
+# Makevars for Unix-like systems (Linux, macOS)
+
 CXX_STD = CXX17
-PKG_CXXFLAGS = $(SHLIB_OPENMP_CXXFLAGS)
-PKG_LIBS = $(SHLIB_OPENMP_CXXFLAGS)
+
+# Armadillo 64-bit word support for large matrices
+PKG_CXXFLAGS = -DARMA_64BIT_WORD
+
+# OpenMP support (if available)
+# R sets SHLIB_OPENMP_CXXFLAGS based on platform capability
+# - Linux/GCC: typically "-fopenmp"
+# - macOS/clang: empty (unless libomp installed)
+PKG_CXXFLAGS += $(SHLIB_OPENMP_CXXFLAGS)
+PKG_LIBS = $(SHLIB_OPENMP_CXXFLAGS) $(LAPACK_LIBS) $(BLAS_LIBS)
