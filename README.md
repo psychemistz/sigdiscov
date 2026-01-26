@@ -13,6 +13,10 @@ R package for computing spatial correlation metrics in spatial transcriptomics d
 - **Batch computation**: All cell type pairs with HDF5 output
 - **High performance**: RcppArmadillo matrix operations
 - **SpaCET-compatible**: Uses population SD (N) for z-normalization
+- **Genome-wide analysis** (v1.4.0): Multi-radius spatial interaction discovery with FDR
+- **Annular weights** (v1.4.0): Ring-shaped weights for paracrine vs juxtacrine signaling
+- **KD-tree streaming** (v1.4.0): O(n log n) neighbor search for 100k+ cells
+- **Cell type pairs** (v1.4.0): Batch analysis of all sender-receiver combinations
 
 ## Installation
 
@@ -110,6 +114,33 @@ result <- compute_batch_sc(
 save_hdf5_sc(result, "signatures.h5")
 ```
 
+### Genome-Wide Analysis (v1.4.0)
+
+```r
+# Unified genome-wide spatial interaction analysis
+result <- genomewide_analysis(
+    data,
+    factor_gene = "TGFB1",
+    sender_celltype = "Macrophage",
+    receiver_celltype = "Fibroblast",
+    radii = seq(10, 100, 10),
+    method = "annular",      # Use ring weights for distance-specific effects
+    fdr_method = "BH",       # Benjamini-Hochberg correction
+    output_file = "result.h5"
+)
+
+# Extract top genes by delta I
+top_genes <- extract_top_delta_i(result, n = 50)
+
+# Cell type pair batch analysis (all combinations)
+pairs_result <- compute_celltype_pair_analysis(
+    data,
+    factor_gene = "TGFB1",
+    radii = c(50, 100, 150),
+    output_dir = "output"
+)
+```
+
 ## Command-Line Analysis
 
 A unified analysis script is provided for comparing spatial metrics with reference signatures:
@@ -167,7 +198,18 @@ Rscript run_analysis.R --vst data.tsv --output results \
 | `compute_signature_sc()` | Main single-cell analysis |
 | `compute_batch_sc()` | Batch all cell type pairs |
 | `create_weights_sc()` | Gaussian weight matrix (sigma = radius/3) |
+| `create_annular_weights_sc()` | Annular (ring) weights (v1.4.0) |
 | `save_hdf5_sc()` / `load_hdf5_sc()` | HDF5 I/O |
+
+### Genome-Wide Analysis (v1.4.0)
+
+| Function | Description |
+|----------|-------------|
+| `genomewide_analysis()` | Unified genome-wide spatial interaction discovery |
+| `compute_celltype_pair_analysis()` | Analyze all cell type pair combinations |
+| `pairwise_moran_celltype_pair()` | Pairwise Moran for specific cell type pair |
+| `apply_fdr_correction()` | FDR correction (BH, BY, Bonferroni) |
+| `extract_top_delta_i()` | Extract top genes by delta I |
 
 ### Core Metrics
 
@@ -188,6 +230,8 @@ Cosine similarity between factor and spatial lag: `I_ND = z_f' * lag_g / (||z_f|
 
 Bounded [-1, 1], interpretable as correlation.
 
+**Important:** I_ND requires GLOBAL normalization (z-score across ALL cells) for correct results. See Normalization section below.
+
 ### Delta I
 Distance-dependent signature: `delta_I = sign * (I_max - I_min)`
 
@@ -196,6 +240,27 @@ Distance-dependent signature: `delta_I = sign * (I_max - I_min)`
 | Decay | > 0 | Paracrine signaling (high near, low far) |
 | Increase | < 0 | Avoidance pattern |
 | Flat | ~ 0 | Constitutive expression |
+
+## Normalization
+
+**CRITICAL:** All spatial analyses require **GLOBAL normalization** - computing mean/std across ALL cells, not subsets.
+
+```r
+# Correct: Global normalization first, then extract subsets
+expr_norm <- standardize_matrix(data$expr)  # z-score across ALL cells
+factor_expr <- expr_norm[factor_gene, sender_idx]
+receiver_expr_norm <- expr_norm[, receiver_idx]
+
+# Incorrect: Local normalization within subsets
+factor_expr <- scale(data$expr[factor_gene, sender_idx])  # WRONG
+```
+
+**Why global normalization matters:**
+- Preserves relative expression differences between cell types
+- Required for cosine similarity (I_ND) to be meaningful
+- Matches Python implementation (genomewide_interaction_v7.py)
+
+The package functions (`compute_signature_visium()`, `compute_signature_sc()`) handle this automatically.
 
 ## Weight Matrices
 
@@ -255,6 +320,20 @@ The default circular weights implementation produces **identical results** to Sp
 - Weight matrix difference: < 1e-16
 - Moran's I difference: < 1e-12
 - Uses population SD (N) for z-normalization
+
+## Recent Changes (v1.4.0)
+
+### New Features
+- **Genome-wide analysis**: `genomewide_analysis()` for unified spatial interaction discovery with multi-radius analysis and FDR correction
+- **Cell type pair analysis**: `compute_celltype_pair_analysis()` for batch analysis of all sender-receiver combinations
+- **Annular weights**: Ring-shaped weights for distance-specific effects (paracrine vs juxtacrine)
+- **KD-tree streaming**: O(n log n) neighbor search for datasets with 100k+ cells
+
+### Improvements
+- **Fixed normalization consistency**: All functions now use GLOBAL normalization, matching Python v7 implementation
+- **Verified accuracy**: R implementation achieves >0.99 Pearson correlation with Python at all radii
+- **Updated C++ defaults**: Streaming functions now expect pre-normalized data (`normalize_data = FALSE`)
+- **Documentation**: Added clear normalization requirements
 
 ## License
 
