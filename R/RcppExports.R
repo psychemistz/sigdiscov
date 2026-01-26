@@ -310,6 +310,30 @@ pairwise_moran_dense_cpp <- function(data, coords, radius, sigma = -1.0, chunk_s
     .Call(`_sigdiscov_pairwise_moran_dense_cpp`, data, coords, radius, sigma, chunk_size, verbose)
 }
 
+#' Streaming Permutation Test for Pairwise Moran's I (Memory Efficient)
+#'
+#' Performs permutation test without storing dense weight matrix.
+#' Uses KD-tree neighbor lists to compute spatial lag on-the-fly for each
+#' permutation, accumulating statistics incrementally.
+#'
+#' Memory usage: O(n_cells × avg_neighbors) for neighbor lists +
+#'               O(n_genes × n_cells) for data/lag + O(n_genes²) for accumulators
+#'
+#' For 98k cells with 5k neighbors: ~1.7 GB instead of 77 GB with dense W.
+#'
+#' @param data Gene expression matrix (genes x cells). Will be z-normalized.
+#' @param coords Cell coordinates (n x 2 matrix)
+#' @param radius Radius for Gaussian weights
+#' @param sigma Gaussian sigma (default: radius/3)
+#' @param n_perm Number of permutations (default: 999)
+#' @param seed Random seed (0 = random, default: 0)
+#' @param verbose Print progress messages (default: TRUE)
+#' @return List with observed, sum, sum_sq, count_extreme, weight_sum, n_edges
+#' @export
+allpairs_permutation_streaming_cpp <- function(data, coords, radius, sigma = -1.0, n_perm = 999L, seed = 0L, verbose = TRUE) {
+    .Call(`_sigdiscov_allpairs_permutation_streaming_cpp`, data, coords, radius, sigma, n_perm, seed, verbose)
+}
+
 #' Permutation Test for Spatial Correlation (Single Gene)
 #'
 #' Tests H0: No spatial association between factor and gene expression.

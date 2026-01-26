@@ -366,6 +366,23 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// allpairs_permutation_streaming_cpp
+List allpairs_permutation_streaming_cpp(arma::mat data, const arma::mat& coords, double radius, double sigma, int n_perm, unsigned int seed, bool verbose);
+RcppExport SEXP _sigdiscov_allpairs_permutation_streaming_cpp(SEXP dataSEXP, SEXP coordsSEXP, SEXP radiusSEXP, SEXP sigmaSEXP, SEXP n_permSEXP, SEXP seedSEXP, SEXP verboseSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type coords(coordsSEXP);
+    Rcpp::traits::input_parameter< double >::type radius(radiusSEXP);
+    Rcpp::traits::input_parameter< double >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< int >::type n_perm(n_permSEXP);
+    Rcpp::traits::input_parameter< unsigned int >::type seed(seedSEXP);
+    Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(allpairs_permutation_streaming_cpp(data, coords, radius, sigma, n_perm, seed, verbose));
+    return rcpp_result_gen;
+END_RCPP
+}
 // permutation_test_cpp
 List permutation_test_cpp(const arma::vec& z_f, const arma::vec& lag_g, const std::string& metric, int n_perm);
 RcppExport SEXP _sigdiscov_permutation_test_cpp(SEXP z_fSEXP, SEXP lag_gSEXP, SEXP metricSEXP, SEXP n_permSEXP) {
@@ -615,6 +632,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sigdiscov_pairwise_moran_chunked_cpp", (DL_FUNC) &_sigdiscov_pairwise_moran_chunked_cpp, 6},
     {"_sigdiscov_pairwise_moran_streaming_cpp", (DL_FUNC) &_sigdiscov_pairwise_moran_streaming_cpp, 6},
     {"_sigdiscov_pairwise_moran_dense_cpp", (DL_FUNC) &_sigdiscov_pairwise_moran_dense_cpp, 6},
+    {"_sigdiscov_allpairs_permutation_streaming_cpp", (DL_FUNC) &_sigdiscov_allpairs_permutation_streaming_cpp, 7},
     {"_sigdiscov_permutation_test_cpp", (DL_FUNC) &_sigdiscov_permutation_test_cpp, 4},
     {"_sigdiscov_batch_permutation_test_cpp", (DL_FUNC) &_sigdiscov_batch_permutation_test_cpp, 6},
     {"_sigdiscov_allpairs_permutation_test_cpp", (DL_FUNC) &_sigdiscov_allpairs_permutation_test_cpp, 6},

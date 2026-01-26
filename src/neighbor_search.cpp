@@ -1,5 +1,8 @@
 #include <RcppArmadillo.h>
 #include "nanoflann.hpp"
+#include <random>
+#include <algorithm>
+#include <numeric>
 #ifdef _OPENMP
 #include <omp.h>
 #endif
@@ -881,5 +884,245 @@ List pairwise_moran_dense_cpp(
         Named("moran") = moran,
         Named("weight_sum") = total_weight,
         Named("n_edges") = total_edges
+    );
+}
+
+
+//' Streaming Permutation Test for Pairwise Moran's I (Memory Efficient)
+//'
+//' Performs permutation test without storing dense weight matrix.
+//' Uses KD-tree neighbor lists to compute spatial lag on-the-fly for each
+//' permutation, accumulating statistics incrementally.
+//'
+//' Memory usage: O(n_cells × avg_neighbors) for neighbor lists +
+//'               O(n_genes × n_cells) for data/lag + O(n_genes²) for accumulators
+//'
+//' For 98k cells with 5k neighbors: ~1.7 GB instead of 77 GB with dense W.
+//'
+//' @param data Gene expression matrix (genes x cells). Will be z-normalized.
+//' @param coords Cell coordinates (n x 2 matrix)
+//' @param radius Radius for Gaussian weights
+//' @param sigma Gaussian sigma (default: radius/3)
+//' @param n_perm Number of permutations (default: 999)
+//' @param seed Random seed (0 = random, default: 0)
+//' @param verbose Print progress messages (default: TRUE)
+//' @return List with observed, sum, sum_sq, count_extreme, weight_sum, n_edges
+//' @export
+// [[Rcpp::export]]
+List allpairs_permutation_streaming_cpp(
+    arma::mat data,
+    const arma::mat& coords,
+    double radius,
+    double sigma = -1.0,
+    int n_perm = 999,
+    unsigned int seed = 0,
+    bool verbose = true
+) {
+    arma::uword n_genes = data.n_rows;
+    arma::uword n_cells = data.n_cols;
+
+    if (sigma < 0) {
+        sigma = radius / 3.0;
+    }
+
+    if (verbose) {
+        Rcpp::Rcout << "Streaming Permutation Test for Pairwise Moran's I\n";
+        Rcpp::Rcout << n_cells << " cells, " << n_genes << " genes, "
+                    << n_perm << " permutations\n";
+        Rcpp::Rcout << "radius=" << radius << ", sigma=" << sigma << "\n";
+    }
+
+    // Step 1: Z-normalize data (population SD)
+    if (verbose) Rcpp::Rcout << "Z-normalizing data...\n";
+
+    for (arma::uword i = 0; i < n_genes; i++) {
+        arma::rowvec row = data.row(i);
+        double mean_val = arma::mean(row);
+        double var_val = arma::var(row, 1);  // Population variance
+        double sd_val = std::sqrt(var_val);
+
+        if (sd_val > 1e-10) {
+            data.row(i) = (row - mean_val) / sd_val;
+        } else {
+            data.row(i).zeros();
+        }
+    }
+
+    // Step 2: Build KD-tree and extract neighbor lists
+    if (verbose) Rcpp::Rcout << "Building KD-tree and neighbor lists...\n";
+
+    PointCloud cloud(coords);
+    KDTree index(2, cloud, nanoflann::KDTreeSingleIndexAdaptorParams(10));
+    index.buildIndex();
+
+    double radius_sq = radius * radius;
+    double gaussian_factor = -1.0 / (2.0 * sigma * sigma);
+
+    nanoflann::SearchParameters params;
+    params.sorted = false;
+
+    // Store neighbor lists: for each cell, list of (neighbor_idx, normalized_weight)
+    std::vector<std::vector<std::pair<arma::uword, double>>> neighbors(n_cells);
+    double total_weight = 0.0;
+    arma::uword total_edges = 0;
+
+    for (arma::uword i = 0; i < n_cells; i++) {
+        double query_pt[2] = {coords(i, 0), coords(i, 1)};
+
+        std::vector<nanoflann::ResultItem<size_t, double>> matches;
+        index.radiusSearch(query_pt, radius_sq, matches, params);
+
+        // First pass: compute row sum
+        double row_sum = 0.0;
+        std::vector<std::pair<arma::uword, double>> cell_neighbors;
+        cell_neighbors.reserve(matches.size());
+
+        for (const auto& match : matches) {
+            arma::uword j = static_cast<arma::uword>(match.first);
+            if (j == i) continue;
+
+            double w = std::exp(match.second * gaussian_factor);
+            if (w > 1e-10) {
+                cell_neighbors.push_back(std::make_pair(j, w));
+                row_sum += w;
+            }
+        }
+
+        // Second pass: normalize and store
+        if (row_sum > 0) {
+            for (auto& cn : cell_neighbors) {
+                cn.second /= row_sum;
+                total_weight += cn.second;
+                total_edges++;
+            }
+            neighbors[i] = std::move(cell_neighbors);
+        }
+
+        // Progress
+        if (verbose && i > 0 && i % 20000 == 0) {
+            Rcpp::Rcout << "  Built neighbors for " << i << "/" << n_cells << " cells\n";
+        }
+    }
+
+    if (verbose) {
+        Rcpp::Rcout << "Neighbor lists: " << total_edges << " edges, "
+                    << static_cast<double>(total_edges) / n_cells << " avg/cell\n";
+        Rcpp::Rcout << "S0: " << total_weight << "\n";
+
+        // Estimate memory
+        double mem_mb = static_cast<double>(total_edges) * (sizeof(arma::uword) + sizeof(double)) / 1e6;
+        Rcpp::Rcout << "Neighbor list memory: ~" << mem_mb << " MB\n";
+    }
+
+    if (total_weight < 1e-10) {
+        Rcpp::stop("No valid neighbors found within radius");
+    }
+
+    // Step 3: Compute observed Moran's I using streaming
+    if (verbose) Rcpp::Rcout << "Computing observed Moran's I...\n";
+
+    arma::mat lag(n_genes, n_cells, arma::fill::zeros);
+
+    // Compute spatial lag
+    for (arma::uword i = 0; i < n_cells; i++) {
+        if (!neighbors[i].empty()) {
+            arma::vec lag_i(n_genes, arma::fill::zeros);
+            for (const auto& nb : neighbors[i]) {
+                lag_i += nb.second * data.col(nb.first);
+            }
+            lag.col(i) = lag_i;
+        }
+    }
+
+    // Observed Moran's I: M = Z * lag^T / S0
+    arma::mat observed = (data * lag.t()) / total_weight;
+    arma::mat abs_observed = arma::abs(observed);
+
+    // Step 4: Initialize accumulators
+    arma::mat perm_sum(n_genes, n_genes, arma::fill::zeros);
+    arma::mat perm_sum_sq(n_genes, n_genes, arma::fill::zeros);
+    arma::mat count_extreme(n_genes, n_genes, arma::fill::zeros);
+
+    // Random number generator
+    std::mt19937 gen;
+    if (seed == 0) {
+        std::random_device rd;
+        gen.seed(rd());
+    } else {
+        gen.seed(seed);
+    }
+
+    // Permutation indices
+    std::vector<arma::uword> perm_idx(n_cells);
+    std::iota(perm_idx.begin(), perm_idx.end(), 0);
+
+    // Progress
+    int report_interval = std::max(1, n_perm / 10);
+
+    // Step 5: Run permutation test
+    if (verbose) Rcpp::Rcout << "Running " << n_perm << " permutations...\n";
+
+    for (int p = 0; p < n_perm; p++) {
+        // Progress
+        if (verbose && ((p + 1) % report_interval == 0)) {
+            Rcpp::Rcout << "  Permutation " << (p + 1) << "/" << n_perm << "\n";
+        }
+
+        // Check for interrupt
+        if ((p + 1) % 50 == 0) {
+            Rcpp::checkUserInterrupt();
+        }
+
+        // Shuffle permutation indices
+        std::shuffle(perm_idx.begin(), perm_idx.end(), gen);
+
+        // Compute permuted spatial lag
+        // Key insight: neighbor structure stays same, but expression values are permuted
+        // lag_perm[:, i] = sum_j(w_ij * data[:, perm_idx[j]])
+        arma::mat lag_perm(n_genes, n_cells, arma::fill::zeros);
+
+        for (arma::uword i = 0; i < n_cells; i++) {
+            if (!neighbors[i].empty()) {
+                arma::vec lag_i(n_genes, arma::fill::zeros);
+                for (const auto& nb : neighbors[i]) {
+                    // Use permuted expression from neighbor location
+                    lag_i += nb.second * data.col(perm_idx[nb.first]);
+                }
+                lag_perm.col(i) = lag_i;
+            }
+        }
+
+        // Compute permuted Moran's I
+        // Note: we also need permuted data for the left side
+        // M_perm = Z_perm * lag_perm^T / S0
+        // where Z_perm[:, i] = data[:, perm_idx[i]]
+
+        // Build permuted data matrix
+        arma::mat data_perm(n_genes, n_cells);
+        for (arma::uword i = 0; i < n_cells; i++) {
+            data_perm.col(i) = data.col(perm_idx[i]);
+        }
+
+        arma::mat moran_perm = (data_perm * lag_perm.t()) / total_weight;
+
+        // Accumulate statistics
+        perm_sum += moran_perm;
+        perm_sum_sq += moran_perm % moran_perm;
+
+        // Count extreme (two-sided)
+        arma::mat abs_perm = arma::abs(moran_perm);
+        count_extreme += arma::conv_to<arma::mat>::from(abs_perm >= abs_observed);
+    }
+
+    if (verbose) Rcpp::Rcout << "Done.\n";
+
+    return List::create(
+        Named("observed") = observed,
+        Named("sum") = perm_sum,
+        Named("sum_sq") = perm_sum_sq,
+        Named("count_extreme") = count_extreme,
+        Named("weight_sum") = total_weight,
+        Named("n_edges") = total_edges,
+        Named("n_perm") = n_perm
     );
 }

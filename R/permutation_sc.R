@@ -305,3 +305,128 @@ factor_permutation_test_sc <- function(
 
     result
 }
+
+
+#' Streaming Permutation Test for Pairwise Moran's I (Memory Efficient)
+#'
+#' Performs permutation test without storing dense weight matrix in memory.
+#' Uses KD-tree neighbor lists to compute spatial lag on-the-fly for each
+#' permutation. Suitable for large datasets (>10k cells) where the dense
+#' approach would run out of memory.
+#'
+#' @param data Gene expression matrix (genes x cells). Will be z-normalized.
+#' @param coords Cell coordinates (n x 2 matrix)
+#' @param radius Radius for Gaussian weights (in coordinate units)
+#' @param sigma Gaussian sigma (default: radius/3)
+#' @param n_perm Number of permutations (default: 999)
+#' @param seed Random seed for reproducibility (default: NULL)
+#' @param verbose Print progress messages (default: TRUE)
+#'
+#' @return A list containing:
+#'   \item{moran}{Observed Moran's I matrix (genes x genes)}
+#'   \item{z_scores}{Z-score matrix}
+#'   \item{p_values}{Two-sided p-value matrix}
+#'   \item{null_sd}{Standard deviation of null distribution}
+#'   \item{n_perm}{Number of permutations}
+#'   \item{n_cells}{Number of cells}
+#'   \item{weight_sum}{Sum of spatial weights (S0)}
+#'   \item{n_edges}{Number of neighbor pairs}
+#'
+#' @details
+#' Memory comparison for 98k cells:
+#' \itemize{
+#'   \item Dense approach: ~77 GB (stores full weight matrix)
+#'   \item Streaming approach: ~1.7 GB (stores only neighbor lists)
+#' }
+#'
+#' The streaming approach stores sparse neighbor lists and recomputes
+#' spatial lag for each permutation. This trades computation time for
+#' memory efficiency.
+#'
+#' Computational cost per permutation:
+#' \itemize{
+#'   \item O(n_cells × avg_neighbors × n_genes) for spatial lag
+#'   \item O(n_genes² × n_cells) for Moran's I matrix
+#' }
+#'
+#' @examples
+#' \dontrun{
+#' # Load CosMx data (98k cells)
+#' data <- load_data_cosmx("expression.csv", "metadata.csv")
+#'
+#' # Run streaming permutation test (no subsampling needed)
+#' result <- moran_permutation_test_sc_streaming(
+#'   data$expr,
+#'   data$coords,
+#'   radius = 0.1,  # 100 um
+#'   n_perm = 999,
+#'   seed = 42
+#' )
+#'
+#' # Find significant pairs
+#' sig_pairs <- extract_significant_pairs(result, threshold = 0.05)
+#' }
+#'
+#' @seealso \code{\link{moran_permutation_test_sc}} for dense approach with subsampling
+#'
+#' @export
+moran_permutation_test_sc_streaming <- function(
+    data,
+    coords,
+    radius,
+    sigma = NULL,
+    n_perm = 999,
+    seed = NULL,
+    verbose = TRUE
+) {
+    # Input validation
+    if (!is.matrix(data)) data <- as.matrix(data)
+    if (!is.matrix(coords)) coords <- as.matrix(coords)
+
+    n_genes <- nrow(data)
+    n_cells <- ncol(data)
+
+    stopifnot(
+        "Number of cells must match" = n_cells == nrow(coords),
+        "n_perm must be positive" = n_perm > 0,
+        "coords must have 2 columns" = ncol(coords) == 2
+    )
+
+    if (is.null(sigma)) sigma <- radius / 3
+    seed_val <- if (is.null(seed)) 0L else as.integer(seed)
+
+    # Call C++ streaming permutation test
+    result <- allpairs_permutation_streaming_cpp(
+        data, coords, radius, sigma,
+        as.integer(n_perm), seed_val, verbose
+    )
+
+    # Compute statistics from accumulated values
+    observed <- result$observed
+    mean_null <- result$sum / n_perm
+    var_null <- result$sum_sq / n_perm - mean_null^2
+    sd_null <- sqrt(pmax(var_null, .Machine$double.eps))
+
+    z_scores <- (observed - mean_null) / sd_null
+    p_values <- (1 + result$count_extreme) / (n_perm + 1)
+
+    # Add gene names
+    gene_names <- rownames(data)
+    if (is.null(gene_names)) gene_names <- paste0("Gene", seq_len(n_genes))
+
+    rownames(observed) <- colnames(observed) <- gene_names
+    rownames(z_scores) <- colnames(z_scores) <- gene_names
+    rownames(p_values) <- colnames(p_values) <- gene_names
+    rownames(sd_null) <- colnames(sd_null) <- gene_names
+
+    list(
+        moran = observed,
+        z_scores = z_scores,
+        p_values = p_values,
+        null_sd = sd_null,
+        n_perm = n_perm,
+        n_cells = n_cells,
+        weight_sum = result$weight_sum,
+        n_edges = result$n_edges
+    )
+}
