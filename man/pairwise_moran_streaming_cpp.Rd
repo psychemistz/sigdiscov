@@ -22,7 +22,7 @@ pairwise_moran_streaming_cpp(
 
 \item{sigma}{Gaussian sigma (default: radius/3)}
 
-\item{n_threads}{Number of threads (default: 0 = auto)}
+\item{n_threads}{Number of threads (default: 0 = auto, ignored if OpenMP unavailable)}
 
 \item{verbose}{Print progress messages (default: TRUE)}
 }
@@ -36,5 +36,5 @@ Unlimited neighbors without memory explosion.
 }
 \details{
 Memory usage: O(n_genes × n_cells) for data + lag matrices only.
-Uses OpenMP for parallel processing across cells.
+Uses OpenMP for parallel processing across cells when available.
 }

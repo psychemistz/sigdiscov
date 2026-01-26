@@ -9,8 +9,9 @@ pairwise_moran_sc_large(
   coords,
   radius,
   sigma = NULL,
-  method = c("streaming", "matrix"),
+  method = c("auto", "dense", "streaming", "matrix"),
   max_neighbors = 200,
+  chunk_size = 500,
   verbose = TRUE
 )
 }

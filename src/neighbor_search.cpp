@@ -717,3 +717,169 @@ List pairwise_moran_streaming_cpp(
         Named("n_edges") = total_edges
     );
 }
+
+
+//' Compute Pairwise Moran's I with Chunked Dense BLAS (Best for Large Radii)
+//'
+//' Uses chunked dense matrix operations with BLAS for efficient computation
+//' when many neighbors per cell. Processes cells in batches to limit memory.
+//'
+//' For each chunk of cells, computes dense weight matrix and uses optimized
+//' BLAS matrix multiplication for spatial lag. Much faster than streaming
+//' when density > 5% (i.e., > n/20 neighbors per cell).
+//'
+//' @param data Gene expression matrix (genes x cells)
+//' @param coords Cell coordinates (n x 2 matrix)
+//' @param radius Radius for neighbor search
+//' @param sigma Gaussian sigma (default: radius/3)
+//' @param chunk_size Cells per chunk (default: 500, tune for memory)
+//' @param verbose Print progress messages (default: TRUE)
+//' @return List with moran matrix, weight_sum, and n_edges
+//' @export
+// [[Rcpp::export]]
+List pairwise_moran_dense_cpp(
+    arma::mat data,
+    const arma::mat& coords,
+    double radius,
+    double sigma = -1.0,
+    int chunk_size = 500,
+    bool verbose = true
+) {
+    arma::uword n_genes = data.n_rows;
+    arma::uword n_cells = data.n_cols;
+
+    if (sigma < 0) {
+        sigma = radius / 3.0;
+    }
+
+    if (verbose) {
+        Rcpp::Rcout << "Pairwise Moran's I (Chunked Dense BLAS)\n";
+        Rcpp::Rcout << n_cells << " cells, " << n_genes << " genes\n";
+        Rcpp::Rcout << "radius=" << radius << ", sigma=" << sigma << "\n";
+        Rcpp::Rcout << "chunk_size=" << chunk_size << "\n";
+    }
+
+    // Step 1: Z-normalize data (population SD)
+    if (verbose) Rcpp::Rcout << "Z-normalizing data...\n";
+
+    #pragma omp parallel for schedule(static)
+    for (arma::uword i = 0; i < n_genes; i++) {
+        arma::rowvec row = data.row(i);
+        double mean_val = arma::mean(row);
+        double var_val = arma::var(row, 1);
+        double sd_val = std::sqrt(var_val);
+
+        if (sd_val > 1e-10) {
+            data.row(i) = (row - mean_val) / sd_val;
+        } else {
+            data.row(i).zeros();
+        }
+    }
+
+    // Transpose data for efficient column access: data_t is n_cells x n_genes
+    arma::mat data_t = data.t();
+
+    double radius_sq = radius * radius;
+    double gaussian_factor = -1.0 / (2.0 * sigma * sigma);
+
+    // Step 2: Compute spatial lag using chunked dense BLAS
+    if (verbose) Rcpp::Rcout << "Computing spatial lag (chunked dense)...\n";
+
+    arma::mat lag(n_genes, n_cells, arma::fill::zeros);
+
+    arma::uword n_chunks = (n_cells + chunk_size - 1) / chunk_size;
+    double total_weight = 0.0;
+    arma::uword total_edges = 0;
+
+    // Row sums for normalization (need to compute first)
+    arma::vec row_sums(n_cells, arma::fill::zeros);
+
+    for (arma::uword chunk_idx = 0; chunk_idx < n_chunks; chunk_idx++) {
+        arma::uword chunk_start = chunk_idx * chunk_size;
+        arma::uword chunk_end = std::min(chunk_start + static_cast<arma::uword>(chunk_size), n_cells);
+        arma::uword chunk_len = chunk_end - chunk_start;
+
+        if (verbose && (chunk_idx % 10 == 0 || chunk_idx == n_chunks - 1)) {
+            Rcpp::Rcout << "  Chunk " << chunk_idx + 1 << "/" << n_chunks
+                        << " (cells " << chunk_start << "-" << chunk_end - 1 << ")\n";
+        }
+
+        // Compute pairwise distances: chunk_len x n_cells
+        arma::mat chunk_x = coords.rows(chunk_start, chunk_end - 1).col(0);
+        arma::mat chunk_y = coords.rows(chunk_start, chunk_end - 1).col(1);
+
+        // Broadcast difference computation using outer product pattern
+        arma::mat diff_x = arma::repmat(chunk_x, 1, n_cells) -
+                           arma::repmat(coords.col(0).t(), chunk_len, 1);
+        arma::mat diff_y = arma::repmat(chunk_y, 1, n_cells) -
+                           arma::repmat(coords.col(1).t(), chunk_len, 1);
+
+        // Squared distances
+        arma::mat dist_sq = diff_x % diff_x + diff_y % diff_y;
+
+        // Gaussian weights with radius cutoff
+        arma::mat W_chunk = arma::exp(dist_sq * gaussian_factor);
+        W_chunk.elem(arma::find(dist_sq > radius_sq)).zeros();
+
+        // Zero out self-connections
+        for (arma::uword i = 0; i < chunk_len; i++) {
+            W_chunk(i, chunk_start + i) = 0.0;
+        }
+
+        // Threshold small weights
+        W_chunk.elem(arma::find(W_chunk < 1e-10)).zeros();
+
+        // Compute row sums and count edges
+        for (arma::uword i = 0; i < chunk_len; i++) {
+            double rs = arma::accu(W_chunk.row(i));
+            row_sums(chunk_start + i) = rs;
+
+            // Count non-zero entries for this row
+            arma::uword nnz = arma::accu(W_chunk.row(i) > 0);
+            total_edges += nnz;
+        }
+
+        // Row normalize
+        for (arma::uword i = 0; i < chunk_len; i++) {
+            if (row_sums(chunk_start + i) > 0) {
+                W_chunk.row(i) /= row_sums(chunk_start + i);
+            }
+        }
+
+        // Compute lag contribution using BLAS: (chunk_len x n_cells) × (n_cells x n_genes)
+        // lag_chunk = W_chunk × data_t, result is chunk_len x n_genes
+        arma::mat lag_chunk = W_chunk * data_t;
+
+        // Store in lag matrix (transposed)
+        lag.cols(chunk_start, chunk_end - 1) = lag_chunk.t();
+
+        // Accumulate total weight
+        total_weight += arma::accu(W_chunk);
+
+        Rcpp::checkUserInterrupt();
+    }
+
+    if (verbose) {
+        Rcpp::Rcout << "Total edges: " << total_edges << "\n";
+        Rcpp::Rcout << "Avg neighbors/cell: " << static_cast<double>(total_edges) / n_cells << "\n";
+        Rcpp::Rcout << "S0: " << total_weight << "\n";
+    }
+
+    if (total_weight < 1e-10) {
+        Rcpp::stop("No valid neighbors found within radius");
+    }
+
+    // Step 3: Compute Moran's I matrix using BLAS
+    // M = data × lag^T / S0
+    if (verbose) Rcpp::Rcout << "Computing pairwise Moran's I...\n";
+
+    arma::mat moran = (data * lag.t()) / total_weight;
+
+    if (verbose) Rcpp::Rcout << "Done.\n";
+
+    return List::create(
+        Named("moran") = moran,
+        Named("weight_sum") = total_weight,
+        Named("n_edges") = total_edges
+    );
+}

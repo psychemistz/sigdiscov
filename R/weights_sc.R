@@ -167,8 +167,9 @@ create_weights_sc_large <- function(coords, radius, sigma = NULL,
 #'
 #' @export
 pairwise_moran_sc_large <- function(data, coords, radius, sigma = NULL,
-                                     method = c("streaming", "matrix"),
-                                     max_neighbors = 200, verbose = TRUE) {
+                                     method = c("auto", "dense", "streaming", "matrix"),
+                                     max_neighbors = 200, chunk_size = 500,
+                                     verbose = TRUE) {
     data <- as.matrix(data)
     coords <- as.matrix(coords)
     n <- nrow(coords)
@@ -183,9 +184,34 @@ pairwise_moran_sc_large <- function(data, coords, radius, sigma = NULL,
         sigma <- radius / 3
     }
 
+    # Auto-select method based on expected density
+    if (method == "auto") {
+        # Estimate neighbors by sampling
+        coord_range <- max(diff(range(coords[,1])), diff(range(coords[,2])))
+        density_estimate <- (pi * radius^2) / (coord_range^2) * n
+
+        if (verbose) {
+            message(sprintf("Estimated neighbors/cell: %.0f", density_estimate))
+        }
+
+        # Use dense BLAS when > 500 neighbors (about 0.5% density for 98k cells)
+        method <- if (density_estimate > 500) "dense" else "streaming"
+        if (verbose) message(sprintf("Auto-selected method: %s", method))
+    }
+
     # Choose implementation based on method
-    if (method == "streaming") {
-        # Streaming: no W matrix storage, no neighbor limit, fastest
+    if (method == "dense") {
+        # Dense BLAS: chunked matrix operations, best for large radii
+        result <- pairwise_moran_dense_cpp(
+            data,
+            coords,
+            radius,
+            sigma,
+            chunk_size,
+            verbose
+        )
+    } else if (method == "streaming") {
+        # Streaming: no W matrix storage, good for small radii
         result <- pairwise_moran_streaming_cpp(
             data,
             coords,

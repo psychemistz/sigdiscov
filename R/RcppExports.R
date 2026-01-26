@@ -275,18 +275,39 @@ pairwise_moran_chunked_cpp <- function(data, coords, radius, sigma = -1.0, chunk
 #' Unlimited neighbors without memory explosion.
 #'
 #' Memory usage: O(n_genes × n_cells) for data + lag matrices only.
-#' Uses OpenMP for parallel processing across cells.
+#' Uses OpenMP for parallel processing across cells when available.
 #'
 #' @param data Gene expression matrix (genes x cells)
 #' @param coords Cell coordinates (n x 2 matrix)
 #' @param radius Radius for neighbor search
 #' @param sigma Gaussian sigma (default: radius/3)
-#' @param n_threads Number of threads (default: 0 = auto)
+#' @param n_threads Number of threads (default: 0 = auto, ignored if OpenMP unavailable)
 #' @param verbose Print progress messages (default: TRUE)
 #' @return List with moran matrix, weight_sum, and n_edges
 #' @export
 pairwise_moran_streaming_cpp <- function(data, coords, radius, sigma = -1.0, n_threads = 0L, verbose = TRUE) {
     .Call(`_sigdiscov_pairwise_moran_streaming_cpp`, data, coords, radius, sigma, n_threads, verbose)
+}
+
+#' Compute Pairwise Moran's I with Chunked Dense BLAS (Best for Large Radii)
+#'
+#' Uses chunked dense matrix operations with BLAS for efficient computation
+#' when many neighbors per cell. Processes cells in batches to limit memory.
+#'
+#' For each chunk of cells, computes dense weight matrix and uses optimized
+#' BLAS matrix multiplication for spatial lag. Much faster than streaming
+#' when density > 5% (i.e., > n/20 neighbors per cell).
+#'
+#' @param data Gene expression matrix (genes x cells)
+#' @param coords Cell coordinates (n x 2 matrix)
+#' @param radius Radius for neighbor search
+#' @param sigma Gaussian sigma (default: radius/3)
+#' @param chunk_size Cells per chunk (default: 500, tune for memory)
+#' @param verbose Print progress messages (default: TRUE)
+#' @return List with moran matrix, weight_sum, and n_edges
+#' @export
+pairwise_moran_dense_cpp <- function(data, coords, radius, sigma = -1.0, chunk_size = 500L, verbose = TRUE) {
+    .Call(`_sigdiscov_pairwise_moran_dense_cpp`, data, coords, radius, sigma, chunk_size, verbose)
 }
 
 #' Permutation Test for Spatial Correlation (Single Gene)
