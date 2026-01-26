@@ -1,7 +1,7 @@
 Package: sigdiscov
 Type: Package
 Title: Spatial Signature Discovery for Spatial Transcriptomics
-Version: 1.3.0
+Version: 1.4.0
 Author: Seongyong Park [aut, cre]
 Maintainer: Seongyong Park <psychemistz@gmail.com>
 Description: Unified spatial signature discovery for spatial transcriptomics data.
@@ -10,7 +10,9 @@ Description: Unified spatial signature discovery for spatial transcriptomics dat
     directional Moran's I), and signed Delta I to identify genes with spatially
     correlated expression patterns. Features include binary weights for Visium,
     Gaussian weights for single-cell data, batch computation for all cell type
-    pairs, and Python-compatible HDF5 output.
+    pairs, genome-wide spatial interaction analysis with annular (ring) weights,
+    multi-quantile support, FDR correction, and Python-compatible HDF5 output.
+    CPU-optimized for cross-platform compatibility.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

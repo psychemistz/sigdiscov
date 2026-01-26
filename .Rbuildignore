@@ -3,6 +3,8 @@
 ^output$
 ^accelerate$
 ^preprocess$
+^development$
+^version$
 ^\.claude$
 
 # Development scripts

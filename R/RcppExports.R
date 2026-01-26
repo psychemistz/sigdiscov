@@ -141,6 +141,91 @@ standardize_matrix_cpp <- function(X) {
     .Call(`_sigdiscov_standardize_matrix_cpp`, X)
 }
 
+#' Create Directional Weight Matrix for Single-Cell Cell Type Pair Analysis
+#'
+#' Creates a sparse Gaussian weight matrix for sender->receiver cell type pairs.
+#' Weights are computed from sender cells to receiver cells within radius.
+#' Uses KD-tree for efficient neighbor search on large datasets.
+#' Supports annular (ring) weights via inner_radius parameter.
+#'
+#' @param sender_coords Sender cell coordinates (n_sender x 2)
+#' @param receiver_coords Receiver cell coordinates (n_receiver x 2)
+#' @param radius Distance radius (outer radius) in same units as coordinates
+#' @param inner_radius Inner radius for annular weights (default: 0, circular)
+#' @param sigma Gaussian sigma (default: radius/3)
+#' @param use_kdtree Use KD-tree for large datasets (default: TRUE)
+#' @param verbose Print progress messages (default: FALSE)
+#' @return List with W (sparse n_sender x n_receiver), weight_sum, n_edges
+#' @export
+create_directional_weights_sc_cpp <- function(sender_coords, receiver_coords, radius, inner_radius = 0.0, sigma = -1.0, use_kdtree = TRUE, verbose = FALSE) {
+    .Call(`_sigdiscov_create_directional_weights_sc_cpp`, sender_coords, receiver_coords, radius, inner_radius, sigma, use_kdtree, verbose)
+}
+
+#' Compute Directional Pairwise Moran's I for Cell Type Pairs
+#'
+#' Computes gene x gene Moran's I matrix for sender->receiver cell type pairs.
+#' Formula: I[i,j] = Z_sender[i,:] * W * Z_receiver[j,:]^T / S0
+#'
+#' @param sender_data Gene expression for sender cells (genes x n_sender), pre-normalized
+#' @param receiver_data Gene expression for receiver cells (genes x n_receiver), pre-normalized
+#' @param W Sparse directional weight matrix (n_sender x n_receiver), row-normalized
+#' @param verbose Print progress messages (default: FALSE)
+#' @return List with moran matrix (genes x genes) and weight_sum
+#' @export
+pairwise_moran_directional_cpp <- function(sender_data, receiver_data, W, verbose = FALSE) {
+    .Call(`_sigdiscov_pairwise_moran_directional_cpp`, sender_data, receiver_data, W, verbose)
+}
+
+#' Compute Directional Pairwise Moran's I with Streaming (Memory Efficient)
+#'
+#' Computes directional Moran's I without storing the full weight matrix.
+#' Uses KD-tree for efficient neighbor search. Best for large cell counts.
+#'
+#' @param sender_data Gene expression for sender cells (genes x n_sender)
+#' @param receiver_data Gene expression for receiver cells (genes x n_receiver)
+#' @param sender_coords Sender cell coordinates (n_sender x 2)
+#' @param receiver_coords Receiver cell coordinates (n_receiver x 2)
+#' @param radius Distance radius
+#' @param sigma Gaussian sigma (default: radius/3)
+#' @param normalize_data Z-normalize data before computation (default: TRUE)
+#' @param verbose Print progress messages (default: TRUE)
+#' @return List with moran matrix, weight_sum, n_edges
+#' @export
+pairwise_moran_directional_streaming_cpp <- function(sender_data, receiver_data, sender_coords, receiver_coords, radius, sigma = -1.0, normalize_data = TRUE, verbose = TRUE) {
+    .Call(`_sigdiscov_pairwise_moran_directional_streaming_cpp`, sender_data, receiver_data, sender_coords, receiver_coords, radius, sigma, normalize_data, verbose)
+}
+
+#' Compute Delta I from I(r) Curves (Batch)
+#'
+#' Efficiently computes delta I for multiple radii curves.
+#' Delta I = sign(I_short - I_long) * (I_max - I_min)
+#'
+#' @param I_curves 3D array of I values (n_pairs x n_genes x n_genes x n_radii) stored as
+#'        a matrix where each row is a flattened curve for one gene pair
+#' @return List with delta_I, I_max, argmax matrices
+#' @export
+compute_delta_i_batch_cpp <- function(I_curves) {
+    .Call(`_sigdiscov_compute_delta_i_batch_cpp`, I_curves)
+}
+
+#' Compute Cell Type Pair Analysis for Multiple Radii
+#'
+#' Main function for computing Moran's I across multiple radii for a single
+#' cell type pair. Returns I(r) curves for delta I computation.
+#'
+#' @param sender_data Gene expression for sender cells (genes x n_sender)
+#' @param receiver_data Gene expression for receiver cells (genes x n_receiver)
+#' @param sender_coords Sender cell coordinates (n_sender x 2)
+#' @param receiver_coords Receiver cell coordinates (n_receiver x 2)
+#' @param radii Vector of distance radii to compute
+#' @param sigma_factor Sigma = radius * sigma_factor (default: 1/3)
+#' @param verbose Print progress messages (default: TRUE)
+#' @return List with I_curves (n_radii x n_genes x n_genes), delta_I, I_max, argmax
+#' @export
+compute_celltype_pair_moran_cpp <- function(sender_data, receiver_data, sender_coords, receiver_coords, radii, sigma_factor = 0.333333, verbose = TRUE) {
+    .Call(`_sigdiscov_compute_celltype_pair_moran_cpp`, sender_data, receiver_data, sender_coords, receiver_coords, radii, sigma_factor, verbose)
+}
+
 cpp_create_distance <- function(max_shift, mode) {
     .Call(`_sigdiscov_cpp_create_distance`, max_shift, mode)
 }

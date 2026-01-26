@@ -1,0 +1,206 @@
+#!/usr/bin/env Rscript
+# Full Delta I computation with HDF5 streaming
+# Stream Moran matrices to disk, compute delta I afterwards
+# 960 genes x 98k cells, 250 radii (20-5000 um)
+
+library(sigdiscov)
+library(rhdf5)  # For HDF5 I/O
+
+cat("=== Full Delta I Computation (HDF5 Streaming) ===\n")
+cat("960 genes x 98k cells, 250 radii (20-5000 um)\n\n")
+
+# Load CosMx data
+cat("Loading CosMx data...\n")
+t0 <- Sys.time()
+
+meta <- read.csv("dataset/cosmx/Lung5_Rep1_meta.csv")
+vst <- read.csv("dataset/cosmx/Lung5_Rep1_vst_v2_rpy2.csv", row.names = 1)
+
+load_time <- difftime(Sys.time(), t0, units = "secs")
+cat(sprintf("Loaded: %d genes x %d cells (%.1f sec)\n",
+            nrow(vst), ncol(vst), load_time))
+
+data <- as.matrix(vst)
+coords <- as.matrix(meta[, c("sdimx", "sdimy")])
+n_genes <- nrow(data)
+n_cells <- ncol(data)
+gene_names <- rownames(data)
+
+cat(sprintf("Data: %d genes x %d cells\n", n_genes, n_cells))
+
+# Define radii
+radii_um <- seq(20, 5000, by = 20)
+radii_mm <- radii_um / 1000
+n_radii <- length(radii_um)
+
+cat(sprintf("Radii: %d values from %d to %d um\n\n", n_radii, min(radii_um), max(radii_um)))
+
+# Estimate density for method selection
+coord_range_x <- diff(range(coords[,1]))
+coord_range_y <- diff(range(coords[,2]))
+area <- coord_range_x * coord_range_y
+density <- n_cells / area
+est_neighbors <- sapply(radii_mm, function(r) pi * r^2 * density)
+
+density_threshold <- 2000
+dense_radii_idx <- which(est_neighbors >= density_threshold)
+streaming_radii_idx <- which(est_neighbors < density_threshold)
+
+cat(sprintf("Streaming method: %d radii (up to %d um)\n",
+            length(streaming_radii_idx), max(radii_um[streaming_radii_idx])))
+cat(sprintf("Dense BLAS method: %d radii (%d - %d um)\n\n",
+            length(dense_radii_idx), min(radii_um[dense_radii_idx]), max(radii_um[dense_radii_idx])))
+
+# Create HDF5 file
+h5_file <- "output/moran_curves.h5"
+if (file.exists(h5_file)) file.remove(h5_file)
+h5createFile(h5_file)
+
+# Create dataset for Moran matrices: genes x genes x radii
+h5createDataset(h5_file, "moran", dims = c(n_genes, n_genes, n_radii),
+                storage.mode = "double", chunk = c(n_genes, n_genes, 1),
+                level = 4)  # Compression level
+
+# Store metadata
+h5write(radii_um, h5_file, "radii_um")
+h5write(gene_names, h5_file, "gene_names")
+h5write(n_cells, h5_file, "n_cells")
+
+cat(sprintf("HDF5 file: %s\n\n", h5_file))
+
+# Compute and stream Moran matrices
+cat("--- Computing I(r) curves (streaming to HDF5) ---\n")
+
+total_time <- 0
+
+for (i in seq_along(radii_mm)) {
+    r <- radii_mm[i]
+    t1 <- Sys.time()
+
+    # Choose method based on estimated density
+    if (i %in% streaming_radii_idx) {
+        result <- pairwise_moran_streaming_cpp(
+            data, coords, radius = r, sigma = r / 3, verbose = FALSE
+        )
+        method_used <- "S"
+    } else {
+        result <- pairwise_moran_dense_cpp(
+            data, coords, radius = r, sigma = r / 3,
+            chunk_size = 500, verbose = FALSE
+        )
+        method_used <- "D"
+    }
+
+    elapsed <- as.numeric(difftime(Sys.time(), t1, units = "secs"))
+    total_time <- total_time + elapsed
+
+    # Write directly to HDF5 (stream to disk, free memory)
+    h5write(result$moran, h5_file, "moran", index = list(NULL, NULL, i))
+
+    # Progress
+    if (i %% 10 == 0 || i == 1 || i == n_radii) {
+        avg_neighbors <- result$n_edges / n_cells
+        eta <- (total_time / i) * (n_radii - i) / 60
+        cat(sprintf("  [%s] Radius %3d/%d (%4d um): %5.1f sec, %.0f neighbors/cell, ETA: %.1f min\n",
+                    method_used, i, n_radii, radii_um[i], elapsed, avg_neighbors, eta))
+    }
+}
+
+H5close()
+cat(sprintf("\nTotal Moran computation: %.1f min\n", total_time/60))
+cat(sprintf("HDF5 file size: %.1f MB\n", file.size(h5_file) / 1e6))
+
+# Free data matrix memory
+rm(data, coords, result)
+gc()
+
+cat("\n--- Computing Delta I from HDF5 ---\n")
+t1 <- Sys.time()
+
+# Read radii and gene names
+radii_um <- h5read(h5_file, "radii_um")
+gene_names <- h5read(h5_file, "gene_names")
+n_genes <- length(gene_names)
+n_radii <- length(radii_um)
+
+# Initialize result matrices
+delta_I_matrix <- matrix(NA, n_genes, n_genes)
+rownames(delta_I_matrix) <- gene_names
+colnames(delta_I_matrix) <- gene_names
+
+argmax_matrix <- matrix(NA, n_genes, n_genes)
+I_max_matrix <- matrix(NA, n_genes, n_genes)
+
+# Process row by row to minimize memory
+for (i in 1:n_genes) {
+    # Read single row from each radius slice
+    # This gives us the I(r) curve for gene i vs all genes
+    row_curves <- matrix(NA, n_genes, n_radii)
+
+    for (r_idx in 1:n_radii) {
+        # Read row i from moran[:,:,r_idx]
+        row_curves[, r_idx] <- h5read(h5_file, "moran",
+                                       index = list(i, NULL, r_idx))
+    }
+
+    # Compute delta I for gene i vs all genes
+    for (j in 1:n_genes) {
+        curve <- row_curves[j, ]
+        delta_result <- compute_delta_i(curve, radii_um)
+        delta_I_matrix[i, j] <- delta_result$delta_I
+        argmax_matrix[i, j] <- delta_result$argmax
+        I_max_matrix[i, j] <- delta_result$I_max
+    }
+
+    if (i %% 100 == 0) {
+        cat(sprintf("  Processed %d/%d genes\n", i, n_genes))
+    }
+}
+
+H5close()
+delta_time <- difftime(Sys.time(), t1, units = "secs")
+cat(sprintf("Delta I computation: %.1f sec\n", delta_time))
+
+# Save results
+cat("\n--- Saving results ---\n")
+saveRDS(list(
+    delta_I = delta_I_matrix,
+    argmax = argmax_matrix,
+    I_max = I_max_matrix,
+    radii_um = radii_um,
+    gene_names = gene_names,
+    n_cells = n_cells
+), "output/delta_I_full_results.rds")
+
+# Summary
+cat("\n=== Results ===\n")
+cat(sprintf("Delta I range: [%.4f, %.4f]\n",
+            min(delta_I_matrix, na.rm = TRUE),
+            max(delta_I_matrix, na.rm = TRUE)))
+cat(sprintf("Mean |Delta I|: %.4f\n", mean(abs(delta_I_matrix), na.rm = TRUE)))
+
+# Top gene pairs by |Delta I|
+cat("\n--- Top 20 gene pairs by |Delta I| ---\n")
+delta_vec <- as.vector(delta_I_matrix)
+idx_order <- order(abs(delta_vec), decreasing = TRUE)
+
+count <- 0
+for (k in idx_order) {
+    if (count >= 20) break
+    i <- ((k - 1) %% n_genes) + 1
+    j <- ((k - 1) %/% n_genes) + 1
+    if (i != j) {
+        count <- count + 1
+        cat(sprintf("%2d. %s - %s: Delta I = %.4f, I_max = %.4f at %d um\n",
+                    count,
+                    gene_names[i], gene_names[j],
+                    delta_I_matrix[i, j],
+                    I_max_matrix[i, j],
+                    radii_um[argmax_matrix[i, j]]))
+    }
+}
+
+total_elapsed <- difftime(Sys.time(), t0, units = "mins")
+cat(sprintf("\nTotal time: %.1f min\n", total_elapsed))
+cat(sprintf("HDF5 file: %s\n", h5_file))
+cat("Results saved to: output/delta_I_full_results.rds\n")
