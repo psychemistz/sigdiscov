@@ -48,8 +48,9 @@
 #' @importFrom Rcpp sourceCpp
 #' @importFrom Matrix rowSums colSums sparseMatrix t
 #' @importFrom methods new as
-#' @importFrom stats quantile sd p.adjust
-#' @importFrom utils head read.csv
-#' @importFrom graphics abline legend lines points
+#' @importFrom stats quantile sd p.adjust dist rlnorm runif setNames wilcox.test filter
+#' @importFrom utils head read.csv read.table write.csv write.table
+#' @importFrom graphics abline legend lines points grid par text
+#' @importFrom grDevices dev.off png rgb colorRampPalette
 #' @keywords internal
 "_PACKAGE"
