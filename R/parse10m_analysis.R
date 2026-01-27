@@ -296,12 +296,13 @@ perform_de_analysis <- function(expr_matrix, condition_labels,
 
     # Wilcoxon test
     if (results$pct1[i] >= min_pct || results$pct2[i] >= min_pct) {
-      tryCatch({
+      pval_result <- tryCatch({
         wt <- wilcox.test(expr1, expr2, exact = FALSE)
-        results$pval[i] <- wt$p.value
+        wt$p.value
       }, error = function(e) {
-        results$pval[i] <- 1.0
+        1.0
       })
+      results$pval[i] <- pval_result
     } else {
       results$pval[i] <- 1.0
     }
@@ -358,6 +359,7 @@ compute_genomewide_ind <- function(expr_matrix, coords, sender_idx, receiver_idx
   genes <- rownames(expr_matrix)
   n_genes <- length(genes)
   n_radii <- length(radii)
+  n_total <- n_genes * n_radii
 
   if (verbose) {
     message(sprintf("Computing I_ND for %d genes across %d radii...", n_genes, n_radii))
@@ -369,15 +371,25 @@ compute_genomewide_ind <- function(expr_matrix, coords, sender_idx, receiver_idx
   # Extract sender/receiver positions
   sender_pos <- coords[sender_idx, , drop = FALSE]
   receiver_pos <- coords[receiver_idx, , drop = FALSE]
-
-  # Compute pairwise distances once
-  all_pos <- rbind(sender_pos, receiver_pos)
   n_senders <- length(sender_idx)
   n_receivers <- length(receiver_idx)
 
-  dists <- as.matrix(dist(all_pos))[1:n_senders, (n_senders + 1):(n_senders + n_receivers)]
+  # Compute cross-distance matrix directly (memory efficient)
+  # Instead of: dists <- as.matrix(dist(rbind(sender_pos, receiver_pos)))[1:n_s, (n_s+1):(n_s+n_r)]
+  dists <- matrix(0, nrow = n_senders, ncol = n_receivers)
+  for (i in seq_len(n_senders)) {
+    dists[i, ] <- sqrt(rowSums((receiver_pos - matrix(sender_pos[i, ],
+                                                       nrow = n_receivers,
+                                                       ncol = 2,
+                                                       byrow = TRUE))^2))
+  }
 
-  results <- vector("list", n_genes * n_radii)
+  # Pre-allocate result vectors (memory efficient)
+  result_gene <- character(n_total)
+  result_radius <- numeric(n_total)
+  result_ind <- numeric(n_total)
+  result_connections <- integer(n_total)
+
   idx <- 1
 
   for (g in seq_len(n_genes)) {
@@ -418,13 +430,10 @@ compute_genomewide_ind <- function(expr_matrix, coords, sender_idx, receiver_idx
         }
       }
 
-      results[[idx]] <- data.frame(
-        gene = gene,
-        radius = r,
-        I_ND = I_ND,
-        n_connections = as.integer(total_connections),
-        stringsAsFactors = FALSE
-      )
+      result_gene[idx] <- gene
+      result_radius[idx] <- r
+      result_ind[idx] <- I_ND
+      result_connections[idx] <- as.integer(total_connections)
       idx <- idx + 1
     }
 
@@ -433,7 +442,14 @@ compute_genomewide_ind <- function(expr_matrix, coords, sender_idx, receiver_idx
     }
   }
 
-  do.call(rbind, results)
+  # Create single data frame at the end
+  data.frame(
+    gene = result_gene,
+    radius = result_radius,
+    I_ND = result_ind,
+    n_connections = result_connections,
+    stringsAsFactors = FALSE
+  )
 }
 
 #' Compute delta I_ND between active and control conditions

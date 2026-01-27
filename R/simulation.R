@@ -719,12 +719,17 @@ compute_ind_single <- function(sender_indices, receiver_indices, all_positions,
 
   sender_pos <- all_positions[sender_indices, , drop = FALSE]
   receiver_pos <- all_positions[receiver_indices, , drop = FALSE]
-
-  # Compute pairwise distances
-  dists <- as.matrix(dist(rbind(sender_pos, receiver_pos)))
   n_senders <- length(sender_indices)
   n_receivers <- length(receiver_indices)
-  dists <- dists[1:n_senders, (n_senders + 1):(n_senders + n_receivers), drop = FALSE]
+
+  # Compute cross-distance matrix directly (memory efficient)
+  dists <- matrix(0, nrow = n_senders, ncol = n_receivers)
+  for (i in seq_len(n_senders)) {
+    dists[i, ] <- sqrt(rowSums((receiver_pos - matrix(sender_pos[i, ],
+                                                       nrow = n_receivers,
+                                                       ncol = 2,
+                                                       byrow = TRUE))^2))
+  }
 
   # Build weight matrix
   W <- .build_weight_matrix(dists, radius, analysis_config)
