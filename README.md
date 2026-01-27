@@ -17,6 +17,7 @@ R package for computing spatial correlation metrics in spatial transcriptomics d
 - **Annular weights** (v1.4.0): Ring-shaped weights for paracrine vs juxtacrine signaling
 - **KD-tree streaming** (v1.4.0): O(n log n) neighbor search for 100k+ cells
 - **Cell type pairs** (v1.4.0): Batch analysis of all sender-receiver combinations
+- **Simulation framework** (v1.4.0): Standalone R simulation for method validation
 
 ## Installation
 
@@ -141,6 +142,48 @@ pairs_result <- compute_celltype_pair_analysis(
 )
 ```
 
+### Simulation Framework (v1.4.0)
+
+Generate synthetic spatial transcriptomics data for method validation:
+
+```r
+library(sigdiscov)
+
+# Use preset configuration
+config <- get_simulation_preset("basic")
+# Available presets: basic, stochastic_sender, stochastic_hill,
+#                    fixed_5, random_multi, full_stochastic, vst, annular
+
+# Customize parameters
+config$domain$n_cells <- 50000
+config$cell_types$receiver_fractions <- c(0.1, 0.2, 0.3)
+config$output_dir <- "./simulation_output"
+
+# Run simulation
+results <- run_simulation(config)
+
+# Visualize I_ND curves
+plot_ind_curves(results, "ind_curves.png")
+```
+
+For Parse10M-style analysis with active/control sources:
+
+```r
+# Configure Parse10M simulation
+config <- parse10m_config(
+    n_source_cells = 500,
+    n_receiver_cells = 15000,
+    tissue_radius = 5000,
+    response_genes = c("MX1", "IFITM2", "IRF1", "STAT1")
+)
+
+# Run workflow (spatial layout, I_ND, ROC/PR evaluation)
+results <- run_parse10m_simulation(config)
+
+# Plot evaluation metrics
+plot_evaluation_curves(results$eval_results, "auroc_auprc.png")
+```
+
 ## Command-Line Analysis
 
 A unified analysis script is provided for comparing spatial metrics with reference signatures:
@@ -210,6 +253,19 @@ Rscript run_analysis.R --vst data.tsv --output results \
 | `pairwise_moran_celltype_pair()` | Pairwise Moran for specific cell type pair |
 | `apply_fdr_correction()` | FDR correction (BH, BY, Bonferroni) |
 | `extract_top_delta_i()` | Extract top genes by delta I |
+
+### Simulation Framework (v1.4.0)
+
+| Function | Description |
+|----------|-------------|
+| `run_simulation()` | Run unified spatial simulation |
+| `get_simulation_preset()` | Get preset configuration (basic, stochastic, vst, etc.) |
+| `simulation_config()` | Create custom simulation configuration |
+| `run_parse10m_simulation()` | Run Parse10M-style workflow |
+| `parse10m_config()` | Configure Parse10M analysis |
+| `compute_genomewide_ind()` | Compute I_ND for all genes |
+| `evaluate_ind_results()` | ROC/PR evaluation against known genes |
+| `plot_ind_curves()` | Plot I_ND vs distance curves |
 
 ### Core Metrics
 
@@ -328,6 +384,7 @@ The default circular weights implementation produces **identical results** to Sp
 - **Cell type pair analysis**: `compute_celltype_pair_analysis()` for batch analysis of all sender-receiver combinations
 - **Annular weights**: Ring-shaped weights for distance-specific effects (paracrine vs juxtacrine)
 - **KD-tree streaming**: O(n log n) neighbor search for datasets with 100k+ cells
+- **Simulation framework**: Standalone R simulation for method validation with 8 presets (basic, stochastic_sender, stochastic_hill, fixed_5, random_multi, full_stochastic, vst, annular) and Parse10M-style workflow
 
 ### Improvements
 - **Fixed normalization consistency**: All functions now use GLOBAL normalization, matching Python v7 implementation
