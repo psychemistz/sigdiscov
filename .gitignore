@@ -42,4 +42,9 @@ compute_delta_all
 # dataset/
 # preprocess/
 # accelerate/
+# Claude Code local files
 CLAUDE.md
+.claude/
+
+# Development files (local only)
+development/
