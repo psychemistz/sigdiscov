@@ -1,5 +1,8 @@
 # sigdiscov
 
+[![R-CMD-check](https://github.com/psychemistz/sigdiscov/actions/workflows/R-CMD-check.yml/badge.svg)](https://github.com/psychemistz/sigdiscov/actions/workflows/R-CMD-check.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 **Spatial Signature Discovery for Spatial Transcriptomics**
 
 R package for computing spatial correlation metrics in spatial transcriptomics data. Supports both Visium (10x Genomics) and single-cell resolution platforms (CosMx, Xenium, MERFISH).
