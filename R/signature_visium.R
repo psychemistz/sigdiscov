@@ -149,8 +149,8 @@ compute_signature_visium <- function(data,
         message("  Metric: ", metric)
     }
 
-    # Extract and standardize factor expression for senders
-    factor_expr <- standardize(data$expr[factor_gene, sender_idx])
+    # Extract factor expression for senders (from globally normalized matrix)
+    factor_expr <- expr_norm[factor_gene, sender_idx]
 
     # Extract receiver expression (already normalized)
     receiver_expr_norm <- expr_norm[, receiver_idx, drop = FALSE]
