@@ -29,6 +29,7 @@ Suggests:
     Seurat,
     rhdf5,
     ggplot2,
+    sctransform,
     testthat (>= 3.0.0)
 LinkingTo:
     Rcpp,

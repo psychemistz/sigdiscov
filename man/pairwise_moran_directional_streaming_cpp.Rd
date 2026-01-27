@@ -11,14 +11,16 @@ pairwise_moran_directional_streaming_cpp(
   receiver_coords,
   radius,
   sigma = -1,
-  normalize_data = TRUE,
+  normalize_data = FALSE,
   verbose = TRUE
 )
 }
 \arguments{
-\item{sender_data}{Gene expression for sender cells (genes x n_sender)}
+\item{sender_data}{Gene expression for sender cells (genes x n_sender),
+should be globally pre-normalized}
 
-\item{receiver_data}{Gene expression for receiver cells (genes x n_receiver)}
+\item{receiver_data}{Gene expression for receiver cells (genes x n_receiver),
+should be globally pre-normalized}
 
 \item{sender_coords}{Sender cell coordinates (n_sender x 2)}
 
@@ -28,7 +30,9 @@ pairwise_moran_directional_streaming_cpp(
 
 \item{sigma}{Gaussian sigma (default: radius/3)}
 
-\item{normalize_data}{Z-normalize data before computation (default: TRUE)}
+\item{normalize_data}{If TRUE, applies LOCAL z-normalization within each
+subset (NOT recommended - use globally pre-normalized data instead).
+Default: FALSE}
 
 \item{verbose}{Print progress messages (default: TRUE)}
 }
@@ -38,4 +42,10 @@ List with moran matrix, weight_sum, n_edges
 \description{
 Computes directional Moran's I without storing the full weight matrix.
 Uses KD-tree for efficient neighbor search. Best for large cell counts.
+}
+\details{
+IMPORTANT: For correct results, data should be GLOBALLY pre-normalized
+(z-scored across ALL cells, not just sender or receiver subsets).
+Use standardize_matrix() on the full expression matrix, then extract
+sender and receiver subsets.
 }

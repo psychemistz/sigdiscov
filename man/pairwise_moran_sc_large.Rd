@@ -29,6 +29,8 @@ pairwise_moran_sc_large(
 
 \item{max_neighbors}{Maximum neighbors per cell when method="matrix" (default: 200)}
 
+\item{chunk_size}{Number of genes to process per chunk (default: 500)}
+
 \item{verbose}{Print progress messages (default: TRUE)}
 }
 \value{

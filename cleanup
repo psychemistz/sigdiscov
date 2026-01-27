@@ -1,0 +1,6 @@
+#!/bin/sh
+# cleanup script for sigdiscov
+
+rm -f src/*.o src/*.so src/*.dll
+rm -f src/Makevars
+rm -f config.log config.status

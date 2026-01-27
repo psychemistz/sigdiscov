@@ -187,7 +187,7 @@ List create_directional_weights_sc_cpp(
 //' Compute Directional Pairwise Moran's I for Cell Type Pairs
 //'
 //' Computes gene x gene Moran's I matrix for sender->receiver cell type pairs.
-//' Formula: I[i,j] = Z_sender[i,:] * W * Z_receiver[j,:]^T / S0
+//' Formula: \code{I_ij = Z_sender_i * W * Z_receiver_j^T / S0}
 //'
 //' @param sender_data Gene expression for sender cells (genes x n_sender), pre-normalized
 //' @param receiver_data Gene expression for receiver cells (genes x n_receiver), pre-normalized
@@ -257,13 +257,22 @@ List pairwise_moran_directional_cpp(
 //' Computes directional Moran's I without storing the full weight matrix.
 //' Uses KD-tree for efficient neighbor search. Best for large cell counts.
 //'
-//' @param sender_data Gene expression for sender cells (genes x n_sender)
-//' @param receiver_data Gene expression for receiver cells (genes x n_receiver)
+//' IMPORTANT: For correct results, data should be GLOBALLY pre-normalized
+//' (z-scored across ALL cells, not just sender or receiver subsets).
+//' Use standardize_matrix() on the full expression matrix, then extract
+//' sender and receiver subsets.
+//'
+//' @param sender_data Gene expression for sender cells (genes x n_sender),
+//'   should be globally pre-normalized
+//' @param receiver_data Gene expression for receiver cells (genes x n_receiver),
+//'   should be globally pre-normalized
 //' @param sender_coords Sender cell coordinates (n_sender x 2)
 //' @param receiver_coords Receiver cell coordinates (n_receiver x 2)
 //' @param radius Distance radius
 //' @param sigma Gaussian sigma (default: radius/3)
-//' @param normalize_data Z-normalize data before computation (default: TRUE)
+//' @param normalize_data If TRUE, applies LOCAL z-normalization within each
+//'   subset (NOT recommended - use globally pre-normalized data instead).
+//'   Default: FALSE
 //' @param verbose Print progress messages (default: TRUE)
 //' @return List with moran matrix, weight_sum, n_edges
 //' @export
@@ -275,7 +284,7 @@ List pairwise_moran_directional_streaming_cpp(
     const arma::mat& receiver_coords,
     double radius,
     double sigma = -1.0,
-    bool normalize_data = true,
+    bool normalize_data = false,
     bool verbose = true
 ) {
     arma::uword n_genes = sender_data.n_rows;
@@ -293,9 +302,9 @@ List pairwise_moran_directional_streaming_cpp(
         Rcpp::Rcout << "radius=" << radius << ", sigma=" << sigma << "\n";
     }
 
-    // Z-normalize data if requested
+    // Z-normalize data if requested (LOCAL normalization - not recommended)
     if (normalize_data) {
-        if (verbose) Rcpp::Rcout << "Z-normalizing data...\n";
+        if (verbose) Rcpp::Rcout << "Z-normalizing data (LOCAL - consider using globally pre-normalized data)...\n";
 
         // Normalize sender data
         for (arma::uword i = 0; i < n_genes; i++) {
@@ -490,12 +499,22 @@ List compute_delta_i_batch_cpp(
 //' Main function for computing Moran's I across multiple radii for a single
 //' cell type pair. Returns I(r) curves for delta I computation.
 //'
-//' @param sender_data Gene expression for sender cells (genes x n_sender)
-//' @param receiver_data Gene expression for receiver cells (genes x n_receiver)
+//' IMPORTANT: For correct results, data should be GLOBALLY pre-normalized
+//' (z-scored across ALL cells, not just sender or receiver subsets).
+//' Use standardize_matrix() on the full expression matrix, then extract
+//' sender and receiver subsets.
+//'
+//' @param sender_data Gene expression for sender cells (genes x n_sender),
+//'   should be globally pre-normalized
+//' @param receiver_data Gene expression for receiver cells (genes x n_receiver),
+//'   should be globally pre-normalized
 //' @param sender_coords Sender cell coordinates (n_sender x 2)
 //' @param receiver_coords Receiver cell coordinates (n_receiver x 2)
 //' @param radii Vector of distance radii to compute
 //' @param sigma_factor Sigma = radius * sigma_factor (default: 1/3)
+//' @param normalize_data If TRUE, applies LOCAL z-normalization within each
+//'   subset (NOT recommended - use globally pre-normalized data instead).
+//'   Default: FALSE
 //' @param verbose Print progress messages (default: TRUE)
 //' @return List with I_curves (n_radii x n_genes x n_genes), delta_I, I_max, argmax
 //' @export
@@ -507,6 +526,7 @@ List compute_celltype_pair_moran_cpp(
     const arma::mat& receiver_coords,
     const arma::vec& radii,
     double sigma_factor = 0.333333,
+    bool normalize_data = false,
     bool verbose = true
 ) {
     arma::uword n_genes = sender_data.n_rows;
@@ -520,32 +540,34 @@ List compute_celltype_pair_moran_cpp(
                     << n_receiver << " receivers, " << n_radii << " radii\n";
     }
 
-    // Z-normalize data
-    if (verbose) Rcpp::Rcout << "Z-normalizing data...\n";
+    // Z-normalize data if requested (LOCAL normalization - not recommended)
+    if (normalize_data) {
+        if (verbose) Rcpp::Rcout << "Z-normalizing data (LOCAL - consider using globally pre-normalized data)...\n";
 
-    for (arma::uword i = 0; i < n_genes; i++) {
-        arma::rowvec row = sender_data.row(i);
-        double mean_val = arma::mean(row);
-        double var_val = arma::var(row, 1);
-        double sd_val = std::sqrt(var_val);
+        for (arma::uword i = 0; i < n_genes; i++) {
+            arma::rowvec row = sender_data.row(i);
+            double mean_val = arma::mean(row);
+            double var_val = arma::var(row, 1);
+            double sd_val = std::sqrt(var_val);
 
-        if (sd_val > 1e-10) {
-            sender_data.row(i) = (row - mean_val) / sd_val;
-        } else {
-            sender_data.row(i).zeros();
+            if (sd_val > 1e-10) {
+                sender_data.row(i) = (row - mean_val) / sd_val;
+            } else {
+                sender_data.row(i).zeros();
+            }
         }
-    }
 
-    for (arma::uword i = 0; i < n_genes; i++) {
-        arma::rowvec row = receiver_data.row(i);
-        double mean_val = arma::mean(row);
-        double var_val = arma::var(row, 1);
-        double sd_val = std::sqrt(var_val);
+        for (arma::uword i = 0; i < n_genes; i++) {
+            arma::rowvec row = receiver_data.row(i);
+            double mean_val = arma::mean(row);
+            double var_val = arma::var(row, 1);
+            double sd_val = std::sqrt(var_val);
 
-        if (sd_val > 1e-10) {
-            receiver_data.row(i) = (row - mean_val) / sd_val;
-        } else {
-            receiver_data.row(i).zeros();
+            if (sd_val > 1e-10) {
+                receiver_data.row(i) = (row - mean_val) / sd_val;
+            } else {
+                receiver_data.row(i).zeros();
+            }
         }
     }
 

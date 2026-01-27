@@ -2,9 +2,8 @@
 
 CXX_STD = CXX17
 
-# Armadillo 64-bit word support for large matrices
-PKG_CXXFLAGS = -DARMA_64BIT_WORD
+# Armadillo 64-bit word support and OpenMP
+PKG_CXXFLAGS = -DARMA_64BIT_WORD $(SHLIB_OPENMP_CXXFLAGS)
 
-# OpenMP support for Windows (Rtools GCC supports OpenMP)
-PKG_CXXFLAGS += $(SHLIB_OPENMP_CXXFLAGS)
+# Link libraries
 PKG_LIBS = $(SHLIB_OPENMP_CXXFLAGS) $(LAPACK_LIBS) $(BLAS_LIBS)

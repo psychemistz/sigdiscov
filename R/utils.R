@@ -53,35 +53,7 @@ standardize <- function(x, na.rm = TRUE) {
     (x - m) / (s + 1e-10)
 }
 
-#' Standardize Matrix (Gene-wise)
-#'
-#' Standardizes each row (gene) of a matrix to have mean 0 and sd 1.
-#'
-#' @param X Numeric matrix (genes x observations).
-#'
-#' @return Gene-wise standardized matrix with same dimensions.
-#'
-#' @details
-#' Each row is standardized independently. This is the standard
-#' preprocessing for spatial correlation analysis.
-#'
-#' @examples
-#' X <- matrix(rnorm(100), 10, 10)
-#' X_norm <- standardize_matrix(X)
-#' rowMeans(X_norm)  # All approximately 0
-#' apply(X_norm, 1, sd)  # All approximately 1
-#'
-#' @export
-standardize_matrix <- function(X) {
-    # Use population SD (N, not N-1) for consistency
-    t(apply(X, 1, function(row) {
-        n <- length(row)
-        m <- mean(row)
-        s <- sqrt(sum((row - m)^2) / n)
-        if (s < 1e-10) return(rep(0, n))
-        (row - m) / s
-    }))
-}
+# Note: standardize_matrix is defined in preprocess.R with C++ support
 
 #' Adjust P-values for Multiple Testing
 #'

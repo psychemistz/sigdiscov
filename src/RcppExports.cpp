@@ -167,8 +167,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // compute_celltype_pair_moran_cpp
-List compute_celltype_pair_moran_cpp(arma::mat sender_data, arma::mat receiver_data, const arma::mat& sender_coords, const arma::mat& receiver_coords, const arma::vec& radii, double sigma_factor, bool verbose);
-RcppExport SEXP _sigdiscov_compute_celltype_pair_moran_cpp(SEXP sender_dataSEXP, SEXP receiver_dataSEXP, SEXP sender_coordsSEXP, SEXP receiver_coordsSEXP, SEXP radiiSEXP, SEXP sigma_factorSEXP, SEXP verboseSEXP) {
+List compute_celltype_pair_moran_cpp(arma::mat sender_data, arma::mat receiver_data, const arma::mat& sender_coords, const arma::mat& receiver_coords, const arma::vec& radii, double sigma_factor, bool normalize_data, bool verbose);
+RcppExport SEXP _sigdiscov_compute_celltype_pair_moran_cpp(SEXP sender_dataSEXP, SEXP receiver_dataSEXP, SEXP sender_coordsSEXP, SEXP receiver_coordsSEXP, SEXP radiiSEXP, SEXP sigma_factorSEXP, SEXP normalize_dataSEXP, SEXP verboseSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -178,8 +178,9 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const arma::mat& >::type receiver_coords(receiver_coordsSEXP);
     Rcpp::traits::input_parameter< const arma::vec& >::type radii(radiiSEXP);
     Rcpp::traits::input_parameter< double >::type sigma_factor(sigma_factorSEXP);
+    Rcpp::traits::input_parameter< bool >::type normalize_data(normalize_dataSEXP);
     Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
-    rcpp_result_gen = Rcpp::wrap(compute_celltype_pair_moran_cpp(sender_data, receiver_data, sender_coords, receiver_coords, radii, sigma_factor, verbose));
+    rcpp_result_gen = Rcpp::wrap(compute_celltype_pair_moran_cpp(sender_data, receiver_data, sender_coords, receiver_coords, radii, sigma_factor, normalize_data, verbose));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -696,7 +697,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sigdiscov_pairwise_moran_directional_cpp", (DL_FUNC) &_sigdiscov_pairwise_moran_directional_cpp, 4},
     {"_sigdiscov_pairwise_moran_directional_streaming_cpp", (DL_FUNC) &_sigdiscov_pairwise_moran_directional_streaming_cpp, 8},
     {"_sigdiscov_compute_delta_i_batch_cpp", (DL_FUNC) &_sigdiscov_compute_delta_i_batch_cpp, 1},
-    {"_sigdiscov_compute_celltype_pair_moran_cpp", (DL_FUNC) &_sigdiscov_compute_celltype_pair_moran_cpp, 7},
+    {"_sigdiscov_compute_celltype_pair_moran_cpp", (DL_FUNC) &_sigdiscov_compute_celltype_pair_moran_cpp, 8},
     {"_sigdiscov_cpp_create_distance", (DL_FUNC) &_sigdiscov_cpp_create_distance, 2},
     {"_sigdiscov_cpp_z_normalize", (DL_FUNC) &_sigdiscov_cpp_z_normalize, 1},
     {"_sigdiscov_cpp_create_weight_matrix", (DL_FUNC) &_sigdiscov_cpp_create_weight_matrix, 5},

@@ -11,13 +11,16 @@ compute_celltype_pair_moran_cpp(
   receiver_coords,
   radii,
   sigma_factor = 0.333333,
+  normalize_data = FALSE,
   verbose = TRUE
 )
 }
 \arguments{
-\item{sender_data}{Gene expression for sender cells (genes x n_sender)}
+\item{sender_data}{Gene expression for sender cells (genes x n_sender),
+should be globally pre-normalized}
 
-\item{receiver_data}{Gene expression for receiver cells (genes x n_receiver)}
+\item{receiver_data}{Gene expression for receiver cells (genes x n_receiver),
+should be globally pre-normalized}
 
 \item{sender_coords}{Sender cell coordinates (n_sender x 2)}
 
@@ -27,6 +30,10 @@ compute_celltype_pair_moran_cpp(
 
 \item{sigma_factor}{Sigma = radius * sigma_factor (default: 1/3)}
 
+\item{normalize_data}{If TRUE, applies LOCAL z-normalization within each
+subset (NOT recommended - use globally pre-normalized data instead).
+Default: FALSE}
+
 \item{verbose}{Print progress messages (default: TRUE)}
 }
 \value{
@@ -35,4 +42,10 @@ List with I_curves (n_radii x n_genes x n_genes), delta_I, I_max, argmax
 \description{
 Main function for computing Moran's I across multiple radii for a single
 cell type pair. Returns I(r) curves for delta I computation.
+}
+\details{
+IMPORTANT: For correct results, data should be GLOBALLY pre-normalized
+(z-scored across ALL cells, not just sender or receiver subsets).
+Use standardize_matrix() on the full expression matrix, then extract
+sender and receiver subsets.
 }

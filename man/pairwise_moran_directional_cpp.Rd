@@ -20,5 +20,5 @@ List with moran matrix (genes x genes) and weight_sum
 }
 \description{
 Computes gene x gene Moran's I matrix for sender->receiver cell type pairs.
-Formula: I\link{i,j} = Z_sender\link{i,:} * W * Z_receiver\link{j,:}^T / S0
+Formula: \code{I_ij = Z_sender_i * W * Z_receiver_j^T / S0}
 }

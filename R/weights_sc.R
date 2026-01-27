@@ -198,6 +198,7 @@ create_weights_sc_large <- function(coords, radius, sigma = NULL,
 #' @param method Method to use: "streaming" (default, no neighbor limit) or
 #'        "matrix" (builds explicit W matrix with neighbor limit)
 #' @param max_neighbors Maximum neighbors per cell when method="matrix" (default: 200)
+#' @param chunk_size Number of genes to process per chunk (default: 500)
 #' @param verbose Print progress messages (default: TRUE)
 #' @return List with moran matrix, weight_sum, and n_edges
 #'
