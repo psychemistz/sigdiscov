@@ -54,6 +54,14 @@ create_weights_visium <- function(coords, radius = 200,
     type <- match.arg(type)
     platform <- match.arg(platform)
 
+    # Input validation
+    if (radius <= 0) {
+        stop("radius must be positive")
+    }
+    if (sigma <= 0) {
+        stop("sigma must be positive")
+    }
+
     # Circular RBF weights (default, SpaCET-compatible)
     if (type == "circular") {
         # Parse coordinates
@@ -71,6 +79,12 @@ create_weights_visium <- function(coords, radius = 200,
 
         if (ncol(coord_mat) != 2) {
             stop("coords must have exactly 2 columns (x, y coordinates)")
+        }
+        if (any(is.na(coord_mat))) {
+            stop("Coordinates contain NA values")
+        }
+        if (any(!is.finite(coord_mat))) {
+            stop("Coordinates contain non-finite values (Inf or NaN)")
         }
 
         if (sparse) {
@@ -149,10 +163,27 @@ create_weights_visium <- function(coords, radius = 200,
 #'
 #' @export
 create_ring_weights_visium <- function(coords, inner_radius, outer_radius) {
+    # Input validation
+    coords <- as.matrix(coords)
+    if (ncol(coords) != 2) {
+        stop("Coordinates must be a 2-column matrix (x, y)")
+    }
+    if (any(is.na(coords))) {
+        stop("Coordinates contain NA values")
+    }
+    if (any(!is.finite(coords))) {
+        stop("Coordinates contain non-finite values (Inf or NaN)")
+    }
+    if (outer_radius <= 0) {
+        stop("outer_radius must be positive")
+    }
+    if (inner_radius < 0) {
+        stop("inner_radius must be non-negative")
+    }
     if (inner_radius >= outer_radius) {
         stop("inner_radius must be less than outer_radius")
     }
-    create_ring_weights_cpp(as.matrix(coords), inner_radius, outer_radius)
+    create_ring_weights_cpp(coords, inner_radius, outer_radius)
 }
 
 #' Create Directional Weight Matrix (Sender to Receiver)

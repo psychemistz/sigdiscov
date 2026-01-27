@@ -397,7 +397,11 @@ generate_sender_positions <- function(config, domain_config) {
   }
 
   if (length(positions) < config$n_positions) {
-    warning(sprintf("Only placed %d/%d positions", length(positions), config$n_positions))
+    stop(sprintf(
+      "Could not place all positions: only %d/%d placed after %d attempts.\n",
+      "Consider: reduce n_positions, reduce min_separation, or increase domain radius.",
+      length(positions), config$n_positions, max_attempts
+    ))
   }
 
   positions
@@ -554,6 +558,15 @@ solve_diffusion <- function(sender_positions, sender_expression,
 generate_factor_expression <- function(n_total, n_active, active_indices,
                                         expr_config, stoch_config) {
 
+  # Input validation
+ if (length(active_indices) != n_active) {
+    stop(sprintf("Length of active_indices (%d) must equal n_active (%d)",
+                 length(active_indices), n_active))
+  }
+  if (any(active_indices < 1) || any(active_indices > n_total)) {
+    stop(sprintf("active_indices must be between 1 and n_total (%d)", n_total))
+  }
+
   # Initialize with basal expression
   factor_expr <- expr_config$F_basal * rlnorm(n_total, 0, expr_config$sigma_f_basal)
 
@@ -599,6 +612,15 @@ generate_response_expression <- function(n_total, receiver_indices, concentratio
                                           expr_config, stoch_config) {
 
   n_receivers <- length(receiver_indices)
+
+  # Input validation
+  if (any(receiver_indices < 1) || any(receiver_indices > n_total)) {
+    stop(sprintf("receiver_indices must be between 1 and n_total (%d)", n_total))
+  }
+  if (length(concentrations) != n_total) {
+    stop(sprintf("Length of concentrations (%d) must equal n_total (%d)",
+                 length(concentrations), n_total))
+  }
 
   # Initialize with basal expression
   response_expr <- expr_config$R_basal * rlnorm(n_total, 0, expr_config$sigma_r_basal)

@@ -13,6 +13,35 @@
 create_weights_sc <- function(sender_coords, receiver_coords,
                                radius, inner_radius = 0, sigma = NULL,
                                min_weight = 1e-6) {
+    # Input validation
+    sender_coords <- as.matrix(sender_coords)
+    receiver_coords <- as.matrix(receiver_coords)
+
+    if (ncol(sender_coords) != 2 || ncol(receiver_coords) != 2) {
+        stop("Coordinates must be 2-column matrices (x, y)")
+    }
+    if (any(is.na(sender_coords)) || any(is.na(receiver_coords))) {
+        stop("Coordinates contain NA values")
+    }
+    if (any(!is.finite(sender_coords)) || any(!is.finite(receiver_coords))) {
+        stop("Coordinates contain non-finite values (Inf or NaN)")
+    }
+    if (radius <= 0) {
+        stop("radius must be positive")
+    }
+
+    # Warn about potential unit mismatch (coordinates seem too small for um)
+    coord_range <- max(
+        diff(range(sender_coords[, 1])),
+        diff(range(sender_coords[, 2])),
+        diff(range(receiver_coords[, 1])),
+        diff(range(receiver_coords[, 2]))
+    )
+    if (coord_range > 0 && coord_range < 10 && radius > 100) {
+        warning("Coordinates appear small (range < 10) while radius is large (> 100). ",
+                "Check if units are consistent (both should be micrometers or both grid units).")
+    }
+
     if (is.null(sigma)) {
         sigma <- radius / 3  # Match Python default
     }
@@ -39,6 +68,28 @@ create_weights_sc <- function(sender_coords, receiver_coords,
 #' @export
 create_ring_weights_sc <- function(coords, outer_radius, inner_radius,
                                     sigma = NULL) {
+    # Input validation
+    coords <- as.matrix(coords)
+
+    if (ncol(coords) != 2) {
+        stop("Coordinates must be a 2-column matrix (x, y)")
+    }
+    if (any(is.na(coords))) {
+        stop("Coordinates contain NA values")
+    }
+    if (any(!is.finite(coords))) {
+        stop("Coordinates contain non-finite values (Inf or NaN)")
+    }
+    if (outer_radius <= 0) {
+        stop("outer_radius must be positive")
+    }
+    if (inner_radius < 0) {
+        stop("inner_radius must be non-negative")
+    }
+    if (inner_radius >= outer_radius) {
+        stop("inner_radius must be less than outer_radius")
+    }
+
     if (is.null(sigma)) {
         sigma <- outer_radius / 3
     }
@@ -94,6 +145,29 @@ create_annular_weights_sc <- function(
     sigma = NULL,
     verbose = FALSE
 ) {
+    # Input validation
+    sender_coords <- as.matrix(sender_coords)
+    receiver_coords <- as.matrix(receiver_coords)
+
+    if (ncol(sender_coords) != 2 || ncol(receiver_coords) != 2) {
+        stop("Coordinates must be 2-column matrices (x, y)")
+    }
+    if (any(is.na(sender_coords)) || any(is.na(receiver_coords))) {
+        stop("Coordinates contain NA values")
+    }
+    if (any(!is.finite(sender_coords)) || any(!is.finite(receiver_coords))) {
+        stop("Coordinates contain non-finite values (Inf or NaN)")
+    }
+    if (outer_radius <= 0) {
+        stop("outer_radius must be positive")
+    }
+    if (inner_radius < 0) {
+        stop("inner_radius must be non-negative")
+    }
+    if (inner_radius >= outer_radius) {
+        stop("inner_radius must be less than outer_radius")
+    }
+
     if (is.null(sigma)) {
         sigma <- outer_radius / 3
     }
